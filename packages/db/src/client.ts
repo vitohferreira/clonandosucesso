@@ -1,20 +1,37 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * Cliente com service role. Ignora RLS, entao NUNCA pode chegar ao browser:
- * so roda no servidor do Next e no worker.
+ * Cliente com a chave secreta do Supabase. Ela ignora RLS, entao NUNCA pode
+ * chegar ao browser: so roda no servidor do Next e no worker.
  */
 let cached: SupabaseClient | null = null;
+
+/**
+ * A chave secreta aceita dois nomes de variavel, porque o Supabase esta no meio
+ * de uma troca de formato:
+ *
+ *   SUPABASE_SECRET_KEY        chave nova (sb_secret_...), o caminho daqui pra frente
+ *   SUPABASE_SERVICE_ROLE_KEY  chave legada (JWT), e o nome que a integracao da
+ *                              Vercel injeta sozinha
+ *
+ * As duas funcionam igual no supabase-js. Aceitar ambas evita que voce fique
+ * preso ao nome errado quando as legadas forem removidas.
+ */
+export function supabaseSecretKey(): string | undefined {
+  return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
 
 export function serviceClient(): SupabaseClient {
   if (cached) return cached;
 
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = supabaseSecretKey();
 
   if (!url || !key) {
     throw new Error(
-      'SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY sao obrigatorios. Copie .env.example para .env.',
+      'Faltou SUPABASE_URL ou a chave secreta (SUPABASE_SECRET_KEY, ou ' +
+        'SUPABASE_SERVICE_ROLE_KEY se o projeto ainda usa a chave legada). ' +
+        'Copie .env.example para .env.',
     );
   }
 

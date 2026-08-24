@@ -10,6 +10,7 @@ import {
   logScrapeEvent,
   reapStaleJobs,
   remainingToday,
+  supabaseSecretKey,
 } from '@molde/db';
 import {
   errorMessage,
@@ -175,7 +176,12 @@ async function reap(): Promise<void> {
 
 async function main() {
   requireEnv('SUPABASE_URL');
-  requireEnv('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseSecretKey()) {
+    throw new Error(
+      'Falta a chave secreta do Supabase: defina SUPABASE_SECRET_KEY (chave nova, ' +
+        'sb_secret_...) ou SUPABASE_SERVICE_ROLE_KEY (legada). Veja .env.example.',
+    );
+  }
 
   for (const dir of [paths.logs, paths.media, paths.data]) {
     mkdirSync(dir, { recursive: true });

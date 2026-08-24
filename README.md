@@ -53,7 +53,9 @@ npm install
 ### 2. Supabase
 
 Crie um projeto no [Supabase](https://supabase.com). Depois, em
-**Project Settings → API**, copie a URL e a **service role key**.
+**Project Settings → API Keys**, copie a URL do projeto e a **chave secreta**
+(`sb_secret_...`). Se o projeto só mostrar as chaves antigas, use a aba
+**Legacy API Keys → service_role**: o código aceita as duas.
 
 Aplique as migrations. Com a [CLI do Supabase](https://supabase.com/docs/guides/cli):
 
@@ -72,8 +74,13 @@ cp .env.example .env
 node -e "console.log(crypto.randomUUID() + crypto.randomUUID())"  # SESSION_SECRET
 ```
 
-Preencha `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_PASSWORD` e
-`SESSION_SECRET`. As chaves de Groq e Anthropic só são usadas a partir da Fase 1.
+Preencha `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `APP_PASSWORD` e `SESSION_SECRET`.
+As chaves de Groq e Anthropic só são usadas a partir da Fase 1.
+
+> **Projeto gratuito pausa sozinho.** O plano free do Supabase suspende o projeto
+> depois de 7 dias sem atividade no banco. Os dados ficam guardados, mas você
+> precisa retomar na mão pelo painel. Rodar o worker de vez em quando já conta
+> como atividade.
 
 ### 4. Suba a web
 
