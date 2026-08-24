@@ -42,7 +42,9 @@ export async function upsertPost(input: PostUpsertInput): Promise<Post> {
 
   const res = await serviceClient().rpc('upsert_post', { p: clean });
   if (res.error) throw new Error(`upsertPost(${input.shortcode}): ${res.error.message}`);
-  return res.data as Post;
+  const row = (Array.isArray(res.data) ? res.data[0] : res.data) as Post | undefined;
+  if (!row) throw new Error(`upsertPost(${input.shortcode}): o banco nao devolveu o post`);
+  return row;
 }
 
 /**

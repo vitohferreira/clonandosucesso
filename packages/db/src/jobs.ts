@@ -8,6 +8,22 @@ import {
 import { serviceClient, unwrap } from './client';
 
 /**
+ * As funcoes da fila declaram `returns setof jobs` (veja a nota na migration
+ * 0002): devolvem no maximo uma linha, mas sempre dentro de um array. Fila
+ * vazia e `[]`, nunca um objeto de campos nulos.
+ */
+function firstRow<T>(data: unknown): T | null {
+  if (!Array.isArray(data)) return (data as T) ?? null;
+  return (data[0] as T) ?? null;
+}
+
+function requireRow<T>(data: unknown, context: string): T {
+  const row = firstRow<T>(data);
+  if (!row) throw new Error(`${context}: o banco nao devolveu a linha esperada`);
+  return row;
+}
+
+/**
  * Cria um job. Valida com o MESMO schema que o worker usa para ler o payload,
  * entao payload invalido morre aqui e nao 40 minutos depois dentro do worker.
  */
@@ -49,7 +65,7 @@ export async function getJob(id: string): Promise<JobRow | null> {
 export async function claimJob(workerId: string): Promise<JobRow | null> {
   const res = await serviceClient().rpc('claim_job', { p_worker: workerId });
   if (res.error) throw new Error(`claimJob: ${res.error.message}`);
-  return (res.data ?? null) as JobRow | null;
+  return firstRow<JobRow>(res.data);
 }
 
 /** Sinal de vida + progresso para a UI. */
@@ -66,7 +82,7 @@ export async function completeJob(id: string, result: unknown, costUsd?: number)
     p_cost: costUsd ?? null,
   });
   if (res.error) throw new Error(`completeJob: ${res.error.message}`);
-  return res.data as JobRow;
+  return requireRow<JobRow>(res.data, 'completeJob');
 }
 
 export async function failJob(id: string, error: string, costUsd?: number): Promise<JobRow> {
@@ -76,7 +92,7 @@ export async function failJob(id: string, error: string, costUsd?: number): Prom
     p_cost: costUsd ?? null,
   });
   if (res.error) throw new Error(`failJob: ${res.error.message}`);
-  return res.data as JobRow;
+  return requireRow<JobRow>(res.data, 'failJob');
 }
 
 /** Sinal do Instagram: terminal, nao reprocessa sozinho. */
@@ -91,7 +107,7 @@ export async function blockJob(
     p_detail: detail ?? null,
   });
   if (res.error) throw new Error(`blockJob: ${res.error.message}`);
-  return res.data as JobRow;
+  return requireRow<JobRow>(res.data, 'blockJob');
 }
 
 /**
@@ -112,7 +128,7 @@ export async function deferJob(
     p_partial_result: partialResult ?? null,
   });
   if (res.error) throw new Error(`deferJob: ${res.error.message}`);
-  return res.data as JobRow;
+  return requireRow<JobRow>(res.data, 'deferJob');
 }
 
 /** Jobs orfaos (worker morreu) viram `failed`, nunca voltam para a fila sozinhos. */

@@ -25,17 +25,22 @@ create trigger settings_touch before update on settings for each row execute fun
 
 -- ------------------------------------------------------------------- fila
 
+-- NOTA sobre `returns setof` nas funcoes abaixo:
+-- Elas devolvem no maximo UMA linha, entao `returns jobs` seria o natural. Mas
+-- funcao que retorna tipo composto tem traducao ambigua para JSON: quando o
+-- retorno e NULL — o caso do claim_job com a fila vazia — pode vir `null` ou um
+-- objeto com todos os campos nulos, e a segunda forma faria o worker achar que
+-- pegou um job inexistente. Com `setof`, fila vazia e sempre `[]`. Por isso os
+-- helpers do packages/db pegam o primeiro elemento do array.
+
 -- Pega UM job e o marca como running, de forma atomica.
 -- `for update skip locked` garante que dois workers nunca pegam o mesmo job,
 -- mesmo que voce rode um segundo worker por engano.
 create or replace function claim_job(p_worker text)
-returns jobs
-language plpgsql
+returns setof jobs
+language sql
 set search_path = public, pg_temp
 as $$
-declare
-  claimed jobs;
-begin
   update jobs
   set status     = 'running',
       locked_at  = now(),
@@ -52,10 +57,7 @@ begin
     for update skip locked
     limit 1
   )
-  returning * into claimed;
-
-  return claimed;
-end;
+  returning *;
 $$;
 
 -- Sinal de vida do worker durante um job longo, para o reaper nao matar
@@ -72,7 +74,7 @@ as $$
 $$;
 
 create or replace function complete_job(p_id uuid, p_result jsonb, p_cost numeric default null)
-returns jobs
+returns setof jobs
 language sql
 set search_path = public, pg_temp
 as $$
@@ -91,7 +93,7 @@ as $$
 $$;
 
 create or replace function fail_job(p_id uuid, p_error text, p_cost numeric default null)
-returns jobs
+returns setof jobs
 language sql
 set search_path = public, pg_temp
 as $$
@@ -109,7 +111,7 @@ $$;
 -- Sinal do Instagram. Terminal por decisao de projeto: nada aqui volta para a
 -- fila sozinho. Retry cego em scraping e o que queima conta.
 create or replace function block_job(p_id uuid, p_reason text, p_detail jsonb default null)
-returns jobs
+returns setof jobs
 language sql
 set search_path = public, pg_temp
 as $$
@@ -133,7 +135,7 @@ create or replace function defer_job(
   p_reason text,
   p_partial_result jsonb default null
 )
-returns jobs
+returns setof jobs
 language sql
 set search_path = public, pg_temp
 as $$
@@ -178,17 +180,17 @@ $$;
 -- Incremento atomico do consumo do dia. Retorna a linha do dia ja atualizada,
 -- entao o worker sempre decide com o numero real, nao com um cache.
 create or replace function bump_rate_limit(p_day date, p_field text, p_amount integer default 1)
-returns rate_limit_counters
+returns setof rate_limit_counters
 language plpgsql
 set search_path = public, pg_temp
 as $$
-declare
-  updated rate_limit_counters;
 begin
   if p_field not in ('profiles_analyzed', 'posts_opened', 'videos_downloaded', 'requests') then
     raise exception 'Campo de rate limit desconhecido: %', p_field;
   end if;
 
+  return query
+  with bumped as (
   insert into rate_limit_counters as c (day, profiles_analyzed, posts_opened, videos_downloaded, requests)
   values (
     p_day,
@@ -203,9 +205,9 @@ begin
         videos_downloaded = c.videos_downloaded + excluded.videos_downloaded,
         requests          = c.requests          + excluded.requests,
         updated_at        = now()
-  returning * into updated;
-
-  return updated;
+  returning *
+  )
+  select * from bumped;
 end;
 $$;
 
@@ -221,13 +223,10 @@ $$;
 -- deve OMITIR as chaves que nao observou, e nao mandar null. O helper upsertPost
 -- do packages/db ja remove chaves nulas antes de chamar.
 create or replace function upsert_post(p jsonb)
-returns posts
-language plpgsql
+returns setof posts
+language sql
 set search_path = public, pg_temp
 as $$
-declare
-  saved posts;
-begin
   insert into posts as t (
     profile_id, shortcode, type, url, thumbnail_path, caption,
     like_count, comment_count, view_count, video_duration_s, carousel_count,
@@ -272,10 +271,7 @@ begin
                             end,
         -- O bruto acumula em vez de substituir.
         raw              = coalesce(t.raw, '{}'::jsonb) || coalesce(p -> 'raw', '{}'::jsonb)
-  returning * into saved;
-
-  return saved;
-end;
+  returning *;
 $$;
 
 -- Posts do perfil que ainda valem uma abertura individual: nunca abertos, ou

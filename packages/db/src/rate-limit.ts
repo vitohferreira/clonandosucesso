@@ -64,7 +64,10 @@ export async function consume(
     p_amount: amount,
   });
   if (res.error) throw new Error(`consume(${field}): ${res.error.message}`);
-  return res.data as RateLimitCounters;
+  // `returns setof`: sempre array, mesmo com uma linha so.
+  const row = (Array.isArray(res.data) ? res.data[0] : res.data) as RateLimitCounters | undefined;
+  if (!row) throw new Error(`consume(${field}): o banco nao devolveu o contador`);
+  return row;
 }
 
 /** Quanto sobra de cada teto hoje. Para mostrar na tela. */
