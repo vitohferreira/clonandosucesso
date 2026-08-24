@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import {
   JOB_STATUS_LABELS,
@@ -10,22 +9,23 @@ import {
   type RateLimitField,
 } from '@molde/shared';
 import { absoluteTime, duration, relativeTime, usd } from '@/lib/format';
+import { PageHead } from './Shell';
 
 export type LimitsSnapshot = Record<RateLimitField, { used: number; limit: number; left: number }>;
 
-const STATUS_STYLES: Record<JobStatus, string> = {
-  queued: 'bg-zinc-800 text-zinc-300 ring-zinc-700',
-  running: 'bg-blue-500/10 text-blue-300 ring-blue-500/30',
-  done: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/30',
-  failed: 'bg-red-500/10 text-red-300 ring-red-500/30',
-  blocked: 'bg-amber-500/10 text-amber-300 ring-amber-500/30',
+const ESTILO_STATUS: Record<JobStatus, string> = {
+  queued: 'bg-raised text-ink-dim',
+  running: 'bg-live/15 text-live',
+  done: 'bg-good/15 text-good',
+  failed: 'bg-bad/15 text-bad',
+  blocked: 'bg-signal/15 text-signal',
 };
 
-const LIMIT_LABELS: Record<RateLimitField, string> = {
-  profiles_analyzed: 'Perfis analisados',
+const ROTULO_TETO: Record<RateLimitField, string> = {
+  profiles_analyzed: 'Perfis',
   posts_opened: 'Posts abertos',
-  videos_downloaded: 'Videos baixados',
-  requests: 'Navegacoes',
+  videos_downloaded: 'Vídeos baixados',
+  requests: 'Navegações',
 };
 
 export function Dashboard({
@@ -35,215 +35,177 @@ export function Dashboard({
   initialJobs: JobRow[];
   initialLimits: LimitsSnapshot | null;
 }) {
-  const router = useRouter();
   const [jobs, setJobs] = useState(initialJobs);
   const [limits, setLimits] = useState(initialLimits);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [criando, setCriando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const atualizar = useCallback(async () => {
     try {
-      const response = await fetch('/api/jobs', { cache: 'no-store' });
-      if (!response.ok) return;
-      const data = (await response.json()) as { jobs: JobRow[]; limits: LimitsSnapshot };
+      const r = await fetch('/api/jobs', { cache: 'no-store' });
+      if (!r.ok) return;
+      const data = (await r.json()) as { jobs: JobRow[]; limits: LimitsSnapshot };
       setJobs(data.jobs);
       setLimits(data.limits);
     } catch {
-      // Falha de rede momentanea nao precisa aparecer na tela: o proximo tick resolve.
+      // Falha de rede momentânea não precisa aparecer: o próximo tick resolve.
     }
   }, []);
 
-  // Enquanto houver job andando, atualiza rapido; parado, devagar.
+  // Com job andando, atualiza rápido; parado, devagar.
   useEffect(() => {
-    const busy = jobs.some((job) => job.status === 'running' || job.status === 'queued');
-    const interval = setInterval(refresh, busy ? 2_000 : 10_000);
-    return () => clearInterval(interval);
-  }, [jobs, refresh]);
+    const ocupado = jobs.some((j) => j.status === 'running' || j.status === 'queued');
+    const t = setInterval(atualizar, ocupado ? 2_000 : 10_000);
+    return () => clearInterval(t);
+  }, [jobs, atualizar]);
 
-  async function enqueuePing() {
-    setCreating(true);
-    setError(null);
+  async function enfileirarPing() {
+    setCriando(true);
+    setErro(null);
 
-    const response = await fetch('/api/jobs', {
+    const r = await fetch('/api/jobs', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        type: 'ping',
-        payload: { message: 'espinha dorsal', sleepMs: 6_000 },
-      }),
+      body: JSON.stringify({ type: 'ping', payload: { message: 'teste', sleepMs: 6_000 } }),
     });
 
-    setCreating(false);
+    setCriando(false);
 
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(body.error ?? 'nao consegui enfileirar');
+    if (!r.ok) {
+      const b = (await r.json().catch(() => ({}))) as { error?: string };
+      setErro(b.error ?? 'não consegui enfileirar');
       return;
     }
-
-    await refresh();
-  }
-
-  async function logout() {
-    await fetch('/api/auth', { method: 'DELETE' });
-    router.push('/login');
+    await atualizar();
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 p-6 sm:p-10">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Molde</h1>
-          <p className="mt-1 text-sm text-zinc-500">Engenharia reversa de conteudo do Instagram</p>
-        </div>
-        <button
-          onClick={logout}
-          className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs text-zinc-400 transition hover:border-zinc-700 hover:text-zinc-200"
-        >
-          sair
-        </button>
-      </header>
+    <>
+      <PageHead
+        titulo="Fila"
+        descricao="Todo trabalho pesado passa por aqui. O worker pega um de cada vez e grava o resultado."
+        acao={
+          <button
+            onClick={enfileirarPing}
+            disabled={criando}
+            className="rounded-xl border border-line px-3 py-2 text-[13px] text-ink-dim transition-colors hover:border-line-bright hover:text-ink disabled:opacity-40"
+          >
+            {criando ? 'enfileirando…' : 'testar a fila'}
+          </button>
+        }
+      />
+
+      {erro && <p className="mb-6 text-[13px] text-bad">{erro}</p>}
 
       {limits && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-            Tetos de hoje
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {(Object.keys(LIMIT_LABELS) as RateLimitField[]).map((field) => {
-              const value = limits[field];
-              const pct = value.limit > 0 ? Math.min(100, (value.used / value.limit) * 100) : 0;
-              return (
-                <div key={field} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-                  <p className="text-[11px] text-zinc-500">{LIMIT_LABELS[field]}</p>
-                  <p className="mt-1 font-mono text-sm">
-                    <span className={pct >= 100 ? 'text-amber-400' : 'text-zinc-200'}>
-                      {value.used}
-                    </span>
-                    <span className="text-zinc-600"> / {value.limit}</span>
-                  </p>
-                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800">
-                    <div
-                      className={`h-full rounded-full ${pct >= 100 ? 'bg-amber-500' : 'bg-zinc-500'}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
+        <section className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {(Object.keys(ROTULO_TETO) as RateLimitField[]).map((campo) => {
+            const v = limits[campo];
+            const pct = v.limit > 0 ? Math.min(100, (v.used / v.limit) * 100) : 0;
+            const estourou = pct >= 100;
+            return (
+              <div key={campo} className="rounded-xl border border-line bg-surface p-3.5">
+                <p className="text-[11px] text-ink-faint">{ROTULO_TETO[campo]}</p>
+                <p className="tabular mt-1.5 text-[15px]">
+                  <span className={estourou ? 'text-signal' : 'text-ink'}>{v.used}</span>
+                  <span className="text-ink-faint"> / {v.limit}</span>
+                </p>
+                <div className="mt-2.5 h-[3px] overflow-hidden rounded-full bg-line">
+                  <div
+                    className={`h-full rounded-full ${estourou ? 'bg-signal' : 'bg-line-bright'}`}
+                    style={{ width: `${pct}%` }}
+                  />
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </section>
       )}
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-medium">Fase 0 — teste da espinha dorsal</h2>
-            <p className="mt-1 text-xs text-zinc-500">
-              Enfileira um job que nao toca em Instagram, ffmpeg nem API paga. Se ele sair de{' '}
-              <span className="text-zinc-400">na fila</span> para{' '}
-              <span className="text-zinc-400">concluido</span> aqui na tela, web, banco, fila e
-              worker estao conversando.
-            </p>
-          </div>
-          <button
-            onClick={enqueuePing}
-            disabled={creating}
-            className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900 transition hover:bg-white disabled:opacity-40"
-          >
-            {creating ? 'enfileirando...' : 'enfileirar ping'}
-          </button>
-        </div>
-        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-      </section>
+      <h2 className="mb-3 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-faint">
+        Trabalhos recentes
+      </h2>
 
-      <section className="space-y-3">
-        <h2 className="text-xs font-medium uppercase tracking-wider text-zinc-500">Fila</h2>
-
-        {jobs.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-sm text-zinc-600">
-            Nenhum job ainda.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+      {jobs.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-line p-10 text-center text-[13px] text-ink-faint">
+          Nada na fila.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {jobs.map((job) => (
+            <CardJob key={job.id} job={job} />
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
-function JobCard({ job }: { job: JobRow }) {
-  const progress = job.progress;
-  const pct =
-    progress?.current != null && progress.total
-      ? Math.round((progress.current / progress.total) * 100)
-      : null;
+function CardJob({ job }: { job: JobRow }) {
+  const p = job.progress;
+  const pct = p?.current != null && p.total ? Math.round((p.current / p.total) * 100) : null;
 
   return (
-    <li className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+    <li className="rounded-xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <span
-            className={`rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_STYLES[job.status]}`}
+            className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${ESTILO_STATUS[job.status]}`}
           >
             {JOB_STATUS_LABELS[job.status]}
           </span>
-          <span className="text-sm">{JOB_TYPE_LABELS[job.type]}</span>
-          <span className="font-mono text-[11px] text-zinc-600">{job.id.slice(0, 8)}</span>
+          <span className="text-[13px]">{JOB_TYPE_LABELS[job.type]}</span>
+          <span className="tabular text-[11px] text-ink-faint">{job.id.slice(0, 8)}</span>
         </div>
 
-        <div className="flex items-center gap-4 text-[11px] text-zinc-500">
+        <div className="tabular flex items-center gap-4 text-[11px] text-ink-faint">
           <span title={absoluteTime(job.created_at)}>{relativeTime(job.created_at)}</span>
-          {job.finished_at && <span>levou {duration(job.started_at, job.finished_at)}</span>}
-          {job.cost_usd ? <span>{usd(job.cost_usd)}</span> : null}
+          {job.finished_at && <span>{duration(job.started_at, job.finished_at)}</span>}
+          {job.cost_usd ? <span className="text-ink-dim">{usd(job.cost_usd)}</span> : null}
         </div>
       </div>
 
-      {job.status === 'running' && progress && (
+      {job.status === 'running' && p && (
         <div className="mt-3">
-          <div className="flex items-center justify-between text-[11px] text-zinc-500">
+          <div className="flex items-center justify-between text-[11px] text-ink-faint">
             <span>
-              {progress.step}
-              {progress.message ? ` — ${progress.message}` : ''}
+              {p.step}
+              {p.message ? ` — ${p.message}` : ''}
             </span>
-            {progress.current != null && progress.total ? (
-              <span className="font-mono">
-                {progress.current}/{progress.total}
+            {p.current != null && p.total ? (
+              <span className="tabular">
+                {p.current}/{p.total}
               </span>
             ) : null}
           </div>
-          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-zinc-800">
+          <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-line">
             <div
-              className="h-full rounded-full bg-blue-500 transition-all"
+              className="h-full rounded-full bg-live transition-all"
               style={{ width: pct != null ? `${pct}%` : '30%' }}
             />
           </div>
         </div>
       )}
 
-      {/* Adiado por teto diario: nao e falha, so voltou para a fila. */}
+      {/* Adiado por teto diário: não é falha, só voltou para a fila. */}
       {job.status === 'queued' && job.defer_count > 0 && (
-        <p className="mt-3 text-xs text-amber-400/80">
-          Adiado {job.defer_count}x — {job.defer_reason}. Volta em {absoluteTime(job.scheduled_for)}
-          .
+        <p className="mt-3 text-[12px] text-signal">
+          Adiado {job.defer_count}× — {job.defer_reason}. Volta em{' '}
+          {absoluteTime(job.scheduled_for)}.
         </p>
       )}
 
       {job.status === 'blocked' && (
-        <p className="mt-3 text-xs text-amber-300">
+        <p className="mt-3 text-[12px] text-signal">
           Bloqueado: <span className="font-mono">{job.blocked_reason}</span>. O worker parou de
-          proposito e nao vai tentar de novo sozinho.
+          propósito e não vai tentar de novo sozinho.
         </p>
       )}
 
       {job.error && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs text-red-400">erro</summary>
-          <pre className="mt-2 overflow-x-auto rounded-lg bg-zinc-950 p-3 font-mono text-[11px] text-red-300">
+          <summary className="cursor-pointer text-[12px] text-bad">erro</summary>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-void p-3 font-mono text-[11px] text-bad">
             {job.error}
           </pre>
         </details>
@@ -251,8 +213,8 @@ function JobCard({ job }: { job: JobRow }) {
 
       {job.result && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs text-zinc-500">resultado</summary>
-          <pre className="mt-2 overflow-x-auto rounded-lg bg-zinc-950 p-3 font-mono text-[11px] text-zinc-400">
+          <summary className="cursor-pointer text-[12px] text-ink-faint">resultado</summary>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-void p-3 font-mono text-[11px] text-ink-dim">
             {JSON.stringify(job.result, null, 2)}
           </pre>
         </details>

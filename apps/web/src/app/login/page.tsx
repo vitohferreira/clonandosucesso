@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { LogoMark } from '@/components/Logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function LoginPage() {
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { error?: string };
-      setError(body.error ?? 'nao consegui entrar');
+      setError(body.error ?? 'não consegui entrar');
       return;
     }
 
@@ -34,11 +35,12 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Molde</h1>
-          <p className="mt-1 text-sm text-zinc-500">Engenharia reversa de conteudo</p>
-        </div>
+      <form onSubmit={submit} className="w-full max-w-[19rem]">
+        <LogoMark size={30} />
+        <h1 className="mt-5 font-display text-2xl font-semibold tracking-tight">Molde</h1>
+        <p className="mt-1.5 text-[13px] text-ink-faint">
+          Engenharia reversa de conteúdo
+        </p>
 
         <input
           type="password"
@@ -47,17 +49,17 @@ export default function LoginPage() {
           placeholder="senha"
           autoFocus
           autoComplete="current-password"
-          className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm outline-none placeholder:text-zinc-600 focus:border-zinc-600"
+          className="mt-8 w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[14px] outline-none transition-colors placeholder:text-ink-faint focus:border-line-bright"
         />
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="mt-3 text-[13px] text-bad">{error}</p>}
 
         <button
           type="submit"
           disabled={loading || !password}
-          className="w-full rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900 transition hover:bg-white disabled:opacity-40"
+          className="mt-3 w-full rounded-xl bg-ink px-3.5 py-2.5 text-[14px] font-medium text-void transition-opacity hover:opacity-90 disabled:opacity-30"
         >
-          {loading ? 'entrando...' : 'entrar'}
+          {loading ? 'entrando…' : 'entrar'}
         </button>
       </form>
     </main>

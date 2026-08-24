@@ -175,21 +175,53 @@ export const media = {
  * Modelos e precos. O preco esta aqui so para estimar custo por job —
  * confira em https://claude.com/pricing e https://groq.com/pricing quando mudar.
  */
+/**
+ * Provedores de analise disponiveis. Para trocar, mude UMA palavra em
+ * `models.analysis` la embaixo — o resto do pipeline nao percebe a diferenca.
+ *
+ * Os precos existem so para estimar custo por job; confira na fonte quando mudar.
+ */
+export const analysisProviders = {
+  /**
+   * DeepSeek V4 Flash Vision (experimental). Bem mais barato.
+   * Ressalvas que valem lembrar: nao aceita json_schema (a validacao do formato
+   * e feita na aplicacao) e comprime cada imagem para no maximo 384 tokens, o
+   * que dificulta ler texto pequeno na tela.
+   * Precos de horario de pico, para nao subestimar o custo.
+   */
+  deepseek: {
+    provider: 'deepseek' as const,
+    model: 'deepseek-v4-flash-vision-exp',
+    maxTokens: 16_000,
+    usdPerMillionInput: 0.44,
+    usdPerMillionOutput: 1.32,
+  },
+
+  /** Claude Sonnet 5. Mais caro, melhor leitura de imagem, formato garantido. */
+  anthropic: {
+    provider: 'anthropic' as const,
+    model: 'claude-sonnet-5',
+    maxTokens: 16_000,
+    usdPerMillionInput: 3,
+    usdPerMillionOutput: 15,
+  },
+} as const;
+
+export type AnalysisProvider =
+  (typeof analysisProviders)[keyof typeof analysisProviders];
+
 export const models = {
   transcription: {
     provider: 'groq' as const,
     model: 'whisper-large-v3-turbo',
-    /** USD por hora de audio. */
+    /** USD por hora de audio. O plano gratuito do Groq cobre 8h por dia. */
     usdPerAudioHour: 0.04,
+    /** Teto de tamanho por requisicao. Acima disso o audio precisa ser fatiado. */
+    maxUploadBytes: 24 * 1024 * 1024,
   },
-  analysis: {
-    provider: 'anthropic' as const,
-    model: 'claude-sonnet-5',
-    maxTokens: 8_000,
-    /** USD por milhao de tokens. */
-    usdPerMillionInput: 3,
-    usdPerMillionOutput: 15,
-  },
+
+  /** <<< TROQUE AQUI para mudar de provedor de analise. */
+  analysis: analysisProviders.deepseek as AnalysisProvider,
 } as const;
 
 /**

@@ -1,16 +1,76 @@
 @import 'tailwindcss';
 
+/*
+ * Molde — identidade visual.
+ *
+ * A referencia nao e ferramenta de social media (gradiente, cor saturada), e
+ * instrumento de analise: fundo quase preto, tipografia densa, e UMA cor de
+ * destaque, usada so para o que se sobressai. Se tudo brilha, nada brilha.
+ */
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  /* Superficies, do fundo para a frente */
+  --color-void: #0a0a0b;
+  --color-surface: #121215;
+  --color-raised: #1a1a1f;
+  --color-line: #26262c;
+  --color-line-bright: #35353d;
+
+  /* Texto */
+  --color-ink: #ededf0;
+  --color-ink-dim: #9a9aa4;
+  --color-ink-faint: #63636d;
+
+  /* A cor do sinal. Latao: o que foi encontrado, o que se destaca. */
+  --color-signal: #e5a33d;
+  --color-signal-dim: #8a6425;
+  --color-signal-wash: #2a1f0e;
+
+  /* Estados */
+  --color-live: #4d9de0;
+  --color-good: #46b17b;
+  --color-bad: #d9564f;
+
+  --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
-/* Ferramenta pessoal, usada de noite. Tema escuro fixo, sem alternador. */
 html {
   color-scheme: dark;
 }
 
 body {
-  background-color: var(--color-zinc-950);
-  color: var(--color-zinc-100);
+  background-color: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numero e timestamp sempre em mono, com largura fixa: coluna de dados que
+   dança quando o valor muda é ruído visual. */
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--color-signal);
+  color: var(--color-void);
+}
+
+/* Barra de rolagem discreta, para nao competir com o conteudo */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-void);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 5px;
+  border: 2px solid var(--color-void);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-line-bright);
 }

@@ -56,3 +56,31 @@ export function unwrap<T>(
   }
   return res.data;
 }
+
+/**
+ * Coage colunas `numeric` para number.
+ *
+ * O Postgres tem numeric de precisao arbitraria, que nao cabe num double, entao
+ * dependendo do caminho (driver, versao do PostgREST) o valor chega como string
+ * para nao perder digito. Os nossos tipos de dominio prometem `number | null`,
+ * entao a promessa e cumprida aqui, na leitura — e nao com `.toFixed()`
+ * espalhado pela interface, que quebra quando o valor vem como texto.
+ */
+// Sem `extends Record<string, unknown>`: interface do TypeScript nao tem index
+// signature implicita, entao a restricao rejeitaria justamente os tipos de linha
+// que este helper existe para tratar.
+export function coerceNumeric<T>(row: T, fields: readonly string[]): T {
+  const saida: Record<string, unknown> = { ...(row as Record<string, unknown>) };
+  for (const campo of fields) {
+    const valor = saida[campo];
+    if (typeof valor === 'string' && valor.trim() !== '') {
+      const n = Number(valor);
+      if (Number.isFinite(n)) saida[campo] = n;
+    }
+  }
+  return saida as T;
+}
+
+export function coerceNumericAll<T>(rows: T[], fields: readonly string[]): T[] {
+  return rows.map((row) => coerceNumeric(row, fields));
+}

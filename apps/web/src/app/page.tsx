@@ -1,6 +1,7 @@
 import { listJobs, remainingToday } from '@molde/db';
 import type { JobRow } from '@molde/shared';
 import { Dashboard, type LimitsSnapshot } from '@/components/Dashboard';
+import { Shell } from '@/components/Shell';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,12 @@ export default async function HomePage() {
     return (
       <main className="mx-auto max-w-2xl p-10">
         <h1 className="text-2xl font-semibold tracking-tight">Molde</h1>
-        <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-          <p className="text-sm text-amber-300">Nao consegui falar com o Supabase.</p>
-          <pre className="mt-3 overflow-x-auto font-mono text-[11px] text-amber-200/70">
+        <div className="mt-6 rounded-xl border border-signal-dim bg-signal-wash p-4">
+          <p className="text-sm text-signal">Nao consegui falar com o Supabase.</p>
+          <pre className="mt-3 overflow-x-auto font-mono text-[11px] text-signal">
             {setupError}
           </pre>
-          <p className="mt-3 text-xs text-zinc-400">
+          <p className="mt-3 text-xs text-ink-faint">
             Confira SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env e se as migrations de
             supabase/migrations ja foram aplicadas.
           </p>
@@ -36,5 +37,9 @@ export default async function HomePage() {
     );
   }
 
-  return <Dashboard initialJobs={jobs} initialLimits={limits} />;
+  return (
+    <Shell>
+      <Dashboard initialJobs={jobs} initialLimits={limits} />
+    </Shell>
+  );
 }

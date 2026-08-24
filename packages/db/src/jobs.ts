@@ -5,16 +5,19 @@ import {
   type JobRow,
   type JobStatus,
 } from '@molde/shared';
-import { serviceClient, unwrap } from './client';
+import { coerceNumeric, coerceNumericAll, serviceClient, unwrap } from './client';
 
 /**
  * As funcoes da fila declaram `returns setof jobs` (veja a nota na migration
  * 0002): devolvem no maximo uma linha, mas sempre dentro de um array. Fila
  * vazia e `[]`, nunca um objeto de campos nulos.
  */
+const NUM_JOB = ['cost_usd'] as const;
+
 function firstRow<T>(data: unknown): T | null {
-  if (!Array.isArray(data)) return (data as T) ?? null;
-  return (data[0] as T) ?? null;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return coerceNumeric(row as T, NUM_JOB);
 }
 
 function requireRow<T>(data: unknown, context: string): T {
@@ -36,7 +39,7 @@ export async function createJob(input: CreateJobInput): Promise<JobRow> {
     .select()
     .single();
 
-  return unwrap(res, 'createJob') as JobRow;
+  return coerceNumeric(unwrap(res, 'createJob') as JobRow, NUM_JOB);
 }
 
 export async function listJobs(limit = 50, status?: JobStatus): Promise<JobRow[]> {
@@ -49,13 +52,14 @@ export async function listJobs(limit = 50, status?: JobStatus): Promise<JobRow[]
   if (status) query = query.eq('status', status);
 
   const res = await query;
-  return (unwrap(res, 'listJobs') ?? []) as JobRow[];
+  return coerceNumericAll((unwrap(res, 'listJobs') ?? []) as JobRow[], NUM_JOB);
 }
 
 export async function getJob(id: string): Promise<JobRow | null> {
   const res = await serviceClient().from('jobs').select('*').eq('id', id).maybeSingle();
   if (res.error) throw new Error(`getJob: ${res.error.message}`);
-  return (res.data ?? null) as JobRow | null;
+  if (!res.data) return null;
+  return coerceNumeric(res.data as JobRow, NUM_JOB);
 }
 
 /**

@@ -210,6 +210,20 @@ O scraping não é transacional. Cada post é gravado assim que coletado, via
 anterior, com o post aberto, já tinha gravado — a função só sobrescreve os
 campos que a coleta atual de fato observou.
 
+## Provedor de análise
+
+A transcrição é sempre Groq (Whisper). A **estruturação do roteiro** é trocável:
+`models.analysis` em `packages/config` escolhe entre os provedores declarados em
+`analysisProviders`, e o pipeline não percebe a diferença.
+
+| Provedor | Modelo | Por vídeo | Observação |
+|---|---|---|---|
+| `deepseek` (ativo) | `deepseek-v4-flash-vision-exp` | ~US$ 0,012 | Sem `json_schema` — o formato é validado na aplicação, com uma rodada de correção. Comprime cada imagem para 384 tokens, o que dificulta ler texto pequeno na tela. |
+| `anthropic` | `claude-sonnet-5` | ~US$ 0,07 | Formato garantido pelo modelo, leitura de imagem melhor. |
+
+Trocar é uma palavra em `packages/config/src/index.ts`, mais a chave do provedor
+no `.env` (ou nos secrets do GitHub).
+
 ## Detecção de outlier
 
 A peça central da ferramenta, e o lugar onde é fácil se enganar.
@@ -235,10 +249,7 @@ preços de referência estão em `packages/config`.
 ## Fases
 
 - **Fase 0 — Scaffold.** ✅ Monorepo, schema, fila funcionando de ponta a ponta.
-- **Fase 1 — Módulo B**, com upload de arquivo. Upload vai direto do browser
-  para o Supabase Storage por signed URL (o body de uma API route na Vercel morre
-  em ~4,5 MB). Pipeline: ffmpeg extrai áudio e frames por detecção de cena →
-  Groq transcreve → Claude estrutura → tela de resultado.
+- **Fase 1 — Módulo B.** ✅ Upload de arquivo → roteiro anotado.
 - **Fase 2 — Login e coleta.** Script de login, sessão persistida, scraper de
   perfil coletando dados básicos e grid. Sem IA ainda: primeiro provar que a
   coleta é estável e discreta.

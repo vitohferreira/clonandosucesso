@@ -13,6 +13,7 @@
     "bundle-sql": "tsx scripts/bundle-sql.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@molde/config": "*",
     "@molde/db": "*",
     "@molde/shared": "*",

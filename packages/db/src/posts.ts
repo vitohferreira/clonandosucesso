@@ -1,11 +1,15 @@
 import { collection } from '@molde/config';
 import type { Post, PostType } from '@molde/shared';
-import { serviceClient } from './client';
+import { coerceNumeric, coerceNumericAll, serviceClient } from './client';
 
 /**
  * O que se sabe sobre um post numa coleta. Tudo opcional de proposito: uma
  * passada pelo grid ve tipo e thumbnail; abrir o post ve curtidas e duracao.
  */
+const NUM_POST = [
+  'like_count', 'comment_count', 'view_count', 'video_duration_s', 'carousel_count',
+] as const;
+
 export interface PostUpsertInput {
   profile_id: string;
   shortcode: string;
@@ -44,7 +48,7 @@ export async function upsertPost(input: PostUpsertInput): Promise<Post> {
   if (res.error) throw new Error(`upsertPost(${input.shortcode}): ${res.error.message}`);
   const row = (Array.isArray(res.data) ? res.data[0] : res.data) as Post | undefined;
   if (!row) throw new Error(`upsertPost(${input.shortcode}): o banco nao devolveu o post`);
-  return row;
+  return coerceNumeric(row, NUM_POST);
 }
 
 /**
@@ -65,7 +69,7 @@ export async function postsNeedingDetail(
   });
 
   if (res.error) throw new Error(`postsNeedingDetail: ${res.error.message}`);
-  return (res.data ?? []) as Post[];
+  return coerceNumericAll((res.data ?? []) as Post[], NUM_POST);
 }
 
 export async function listPosts(profileId: string, limit = 500): Promise<Post[]> {
@@ -77,5 +81,5 @@ export async function listPosts(profileId: string, limit = 500): Promise<Post[]>
     .limit(limit);
 
   if (res.error) throw new Error(`listPosts: ${res.error.message}`);
-  return (res.data ?? []) as Post[];
+  return coerceNumericAll((res.data ?? []) as Post[], NUM_POST);
 }

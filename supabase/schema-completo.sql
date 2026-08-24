@@ -3,7 +3,7 @@
 -- Cole ESTE ARQUIVO INTEIRO no SQL Editor do Supabase e clique em Run.
 -- Sao 4 migrations na ordem correta. Nao rode em pedacos.
 --
--- Gerado em 2026-08-24T22:54:34.348Z
+-- Gerado em 2026-08-24T23:37:59.828Z
 
 -- ==========================================================================
 -- 0001_init.sql

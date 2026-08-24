@@ -1,6 +1,7 @@
 import type { JobRow, JobType } from '@molde/shared';
 import type { Logger } from '../logger';
 import { ping } from './ping';
+import { videoExtraction } from './video-extraction';
 
 /** O que um handler recebe. */
 export interface HandlerContext {
@@ -33,8 +34,8 @@ export type Handler = (ctx: HandlerContext) => Promise<HandlerResult>;
  */
 export const handlers: Partial<Record<JobType, Handler>> = {
   ping,
+  video_extraction: videoExtraction,
   // profile_analysis: Fase 2/3
-  // video_extraction: Fase 1
 };
 
 export function resolveHandler(type: JobType): Handler {
