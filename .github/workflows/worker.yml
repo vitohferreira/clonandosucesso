@@ -1,0 +1,65 @@
+# Roda o worker aqui dentro do GitHub, sob demanda.
+#
+# Existe para o Molde funcionar sem depender de uma maquina sua ligada. Vale para
+# a Fase 0 e para a Fase 1, que nao tocam no Instagram.
+#
+# ATENCAO para a Fase 2 em diante: o scraping NAO pode rodar aqui. A sessao do
+# Instagram e do seu IP residencial, e navegar com ela a partir de um datacenter
+# e o padrao que mais dispara checkpoint. Naquela fase o worker volta para a sua
+# maquina.
+name: Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutos:
+        description: 'Quantos minutos o worker fica ligado processando a fila'
+        required: true
+        default: '10'
+        type: choice
+        options: ['5', '10', '20', '30']
+
+jobs:
+  processar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Processar a fila
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # So usadas a partir da Fase 1; vazias por enquanto nao atrapalham.
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +e
+          # O worker e um loop infinito de proposito. O timeout manda SIGTERM,
+          # que ele trata encerrando com calma; -k mata se travar.
+          timeout -k 15s ${{ inputs.minutos }}m npx tsx apps/worker/src/index.ts
+          codigo=$?
+          set -e
+          # 124 = timeout expirou, 143 = SIGTERM. Os dois sao encerramento normal.
+          if [ $codigo -eq 0 ] || [ $codigo -eq 124 ] || [ $codigo -eq 143 ]; then
+            echo "Worker encerrado normalmente (codigo $codigo)."
+          else
+            echo "Worker saiu com erro (codigo $codigo)."
+            exit $codigo
+          fi
+
+      - name: Guardar o log para auditoria
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-do-worker
+          path: apps/worker/data/logs/
+          if-no-files-found: ignore
