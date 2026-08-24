@@ -10,6 +10,9 @@
     "node": ">=20.9.0"
   },
   "scripts": {
+    "setup": "npm run setup -w @molde/worker",
+    "doctor": "npm run doctor -w @molde/worker",
+    "db:bundle": "npm run bundle-sql -w @molde/worker",
     "dev": "npm run dev -w @molde/web",
     "dev:web": "npm run dev -w @molde/web",
     "dev:worker": "npm run dev -w @molde/worker",

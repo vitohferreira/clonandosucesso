@@ -42,7 +42,8 @@ não é o caminho recomendado.
 
 ## Setup
 
-Precisa de: Node 20+, Docker, uma conta no Supabase.
+Precisa de: Node 20+ e uma conta no Supabase. (Docker só para rodar o worker
+containerizado — para desenvolver, `npm run dev:worker` basta.)
 
 ### 1. Dependências
 
@@ -50,45 +51,49 @@ Precisa de: Node 20+, Docker, uma conta no Supabase.
 npm install
 ```
 
-### 2. Supabase
+### 2. Crie o projeto no Supabase
 
-Crie um projeto no [Supabase](https://supabase.com). Depois, em
-**Project Settings → API Keys**, copie a URL do projeto e a **chave secreta**
-(`sb_secret_...`). Se o projeto só mostrar as chaves antigas, use a aba
-**Legacy API Keys → service_role**: o código aceita as duas.
+Em [supabase.com](https://supabase.com): **New project**, região **South America
+(São Paulo)**, defina uma database password e guarde ela. Leva uns 2 minutos.
 
-Aplique as migrations. Com a [CLI do Supabase](https://supabase.com/docs/guides/cli):
+### 3. Aplique o schema
 
 ```bash
-supabase link --project-ref SEU_PROJECT_REF
-npm run db:push
+npm run db:bundle
 ```
 
-Ou, se preferir sem CLI: abra o SQL Editor do painel e rode os quatro arquivos
-de `supabase/migrations/` **na ordem**.
+Isso gera `supabase/schema-completo.sql` com as quatro migrations na ordem certa.
+Abra o arquivo, copie tudo, e cole no **SQL Editor** do Supabase → **Run**.
 
-### 3. Variáveis de ambiente
+Colar em pedaços é a forma mais fácil de aplicar o schema pela metade e depois
+não entender por que a fila não funciona. Cole o arquivo inteiro, de uma vez.
+
+### 4. Configure
 
 ```bash
-cp .env.example .env
-node -e "console.log(crypto.randomUUID() + crypto.randomUUID())"  # SESSION_SECRET
+npm run setup
 ```
 
-Preencha `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `APP_PASSWORD` e `SESSION_SECRET`.
-As chaves de Groq e Anthropic só são usadas a partir da Fase 1.
+Pergunta as duas coisas que só você tem (a URL do projeto e a **chave secreta**,
+em **Project Settings → API Keys**), gera o `SESSION_SECRET` sozinho, escreve o
+`.env` e no final roda o diagnóstico.
 
-> **Projeto gratuito pausa sozinho.** O plano free do Supabase suspende o projeto
-> depois de 7 dias sem atividade no banco. Os dados ficam guardados, mas você
-> precisa retomar na mão pelo painel. Rodar o worker de vez em quando já conta
-> como atividade.
+Se o projeto só mostrar as chaves antigas, use **Legacy API Keys → service_role**:
+o script detecta o formato e grava na variável certa.
 
-### 4. Suba a web
+Para conferir o estado do setup a qualquer momento:
+
+```bash
+npm run doctor
+```
+
+### 5. Suba a web
 
 ```bash
 npm run dev:web    # http://localhost:3000
 ```
 
-### 5. Suba o worker
+### 6. Suba o worker
 
 Modo direto, sem container (mais simples para desenvolver):
 
@@ -103,7 +108,7 @@ export MOLDE_UID=$(id -u) MOLDE_GID=$(id -g)   # Linux; no macOS pode pular
 docker compose up --build
 ```
 
-### 6. Prove a espinha dorsal
+### 7. Prove a espinha dorsal
 
 Abra `http://localhost:3000`, entre com a senha, clique em **enfileirar ping**.
 
@@ -219,6 +224,9 @@ preços de referência estão em `packages/config`.
 ## Comandos
 
 ```bash
+npm run setup          # configura o .env e diagnostica o setup
+npm run doctor         # confere o setup a qualquer momento
+npm run db:bundle      # gera supabase/schema-completo.sql para colar no painel
 npm run dev:web        # Next em localhost:3000
 npm run dev:worker     # worker com reload
 npm run login          # login no Instagram (HOST, nunca no Docker)

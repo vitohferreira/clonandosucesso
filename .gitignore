@@ -13,3 +13,4 @@ apps/worker/data/
 
 .DS_Store
 *.log
+supabase/schema-completo.sql
