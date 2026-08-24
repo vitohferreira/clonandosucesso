@@ -147,6 +147,32 @@ sessão expirar, o job falha com mensagem clara pedindo para você rodar
 > usar uma conta secundária, use uma que **já exista há tempo e tenha uso humano
 > normal** — conta recém-criada que só navega perfis é mais suspeita, não menos.
 
+## Rodando sem máquina local
+
+O worker também roda dentro do GitHub Actions, sob demanda — útil quando você não
+quer (ou não pode) manter um terminal aberto.
+
+**Como ligar:** Actions → **Worker** → **Run workflow** → escolha por quantos
+minutos. Ele processa o que estiver na fila e encerra sozinho.
+
+**Secrets necessários** (Settings → Secrets and variables → Actions):
+`SUPABASE_URL` e `SUPABASE_SECRET_KEY`. A partir da Fase 1, também `GROQ_API_KEY`
+e `ANTHROPIC_API_KEY`.
+
+**Para enfileirar um job sem a interface**, pelo SQL Editor do Supabase:
+
+```sql
+insert into jobs (type, payload)
+values ('ping', '{"message":"teste","sleepMs":8000}'::jsonb);
+
+select status, result from jobs order by created_at desc limit 1;
+```
+
+> **Isto vale só até a Fase 2.** O scraping do Instagram não pode rodar no GitHub:
+> a sessão é do seu IP residencial, e navegar com ela a partir de um datacenter é
+> o padrão que mais dispara checkpoint. Naquela fase o worker volta para a sua
+> máquina, e o `npm run login` continua sendo obrigatoriamente local.
+
 ## Regras de operação do scraper
 
 Não são negociáveis e estão implementadas na infraestrutura, não na boa vontade
