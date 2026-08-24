@@ -1,0 +1,23 @@
+{
+  "name": "@molde/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "login": "tsx scripts/login.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@molde/config": "*",
+    "@molde/db": "*",
+    "@molde/shared": "*",
+    "dotenv": "^17.4.2",
+    "playwright": "1.62.1",
+    "tsx": "^4.23.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0"
+  }
+}

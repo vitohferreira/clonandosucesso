@@ -1,0 +1,28 @@
+{
+  "name": "molde",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @molde/web",
+    "dev:web": "npm run dev -w @molde/web",
+    "dev:worker": "npm run dev -w @molde/worker",
+    "build": "npm run build -w @molde/web",
+    "start:worker": "npm run start -w @molde/worker",
+    "login": "npm run login -w @molde/worker",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,css}\"",
+    "db:push": "supabase db push",
+    "db:reset": "supabase db reset"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "5.9.3"
+  }
+}

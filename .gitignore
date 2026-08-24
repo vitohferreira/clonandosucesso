@@ -1,0 +1,15 @@
+node_modules/
+.next/
+dist/
+out/
+*.tsbuildinfo
+
+# Segredos e sessao do navegador. O storageState e uma credencial viva:
+# quem tiver esse arquivo esta logado na conta do Instagram.
+.env
+.env.local
+.env*.local
+apps/worker/data/
+
+.DS_Store
+*.log
