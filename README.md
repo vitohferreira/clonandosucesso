@@ -230,8 +230,12 @@ A transcrição é sempre Groq (Whisper). A **estruturação do roteiro** é tro
 
 | Provedor | Modelo | Por vídeo | Observação |
 |---|---|---|---|
-| `deepseek` (ativo) | `deepseek-v4-flash-vision-exp` | ~US$ 0,012 | Sem `json_schema` — o formato é validado na aplicação, com uma rodada de correção. Comprime cada imagem para 384 tokens, o que dificulta ler texto pequeno na tela. |
-| `anthropic` | `claude-sonnet-5` | ~US$ 0,07 | Formato garantido pelo modelo, leitura de imagem melhor. |
+| `groq` (ativo) | `llama-4-scout` | **grátis** | Usa a mesma chave da transcrição — nenhuma conta a mais. Aceita poucas imagens por requisição (5), então a análise visual é mais rasa. |
+| `deepseek` | `deepseek-v4-flash-vision-exp` | ~US$ 0,012 | Sem `json_schema` — o formato é validado na aplicação. Comprime cada imagem para 384 tokens. |
+| `anthropic` | `claude-sonnet-5` | ~US$ 0,07 | Formato garantido pelo modelo, melhor leitura de texto na tela. |
+
+Cada provedor declara quantas imagens aceita (`maxImages`), e a amostragem de
+quadros se ajusta sozinha — trocar de provedor não exige mexer em mais nada.
 
 Trocar é uma palavra em `packages/config/src/index.ts`, mais a chave do provedor
 no `.env` (ou nos secrets do GitHub).

@@ -8,41 +8,40 @@ import {
   SISTEMA,
   SISTEMA_PERFIL,
   montarContexto,
+  montarContextoPerfil,
   type ContextoPerfil,
   type ContextoVideo,
   type EstruturaResultado,
   type SinteseResultado,
-  montarContextoPerfil,
 } from './prompt';
 
 /**
- * Estruturacao do roteiro via DeepSeek.
+ * Analise pelo Groq, com modelo de visao.
  *
- * A API e compativel com o formato da OpenAI, entao fetch direto basta.
+ * E a opcao GRATUITA: a mesma chave que ja transcreve o audio serve aqui, entao
+ * nao ha conta nova nem cartao. O modelo e menos preciso que o Claude para ler
+ * texto pequeno na tela, e aceita menos imagens por requisicao — por isso
+ * `maxImages` e declarado por provedor, e o pipeline amostra menos quadros.
  *
- * Duas particularidades do provedor moldam este arquivo:
- *
- * 1. Nao existe json_schema, so `json_object`. A validacao contra o schema e
- *    feita aqui, na aplicacao, com uma segunda tentativa levando o erro de volta
- *    ao modelo quando a primeira sai fora do formato.
- * 2. Cada imagem e comprimida para no maximo 384 tokens. Texto pequeno na tela
- *    pode nao sobreviver a essa compressao — se a leitura de tela vier fraca,
- *    e aqui que se olha primeiro.
+ * Como todo provedor sem json_schema, o formato e garantido aqui, validando
+ * contra o schema e dando uma segunda chance com o erro de volta ao modelo.
  */
-const ENDPOINT = 'https://api.deepseek.com/chat/completions';
+const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
-interface MensagemDeepSeek {
+type Bloco = { type: string; text?: string; image_url?: { url: string } };
+
+interface Mensagem {
   role: 'system' | 'user' | 'assistant';
-  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+  content: string | Bloco[];
 }
 
-interface RespostaDeepSeek {
-  choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+interface Resposta {
+  choices?: Array<{ message?: { content?: string } }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
-async function chamar(mensagens: MensagemDeepSeek[]): Promise<RespostaDeepSeek> {
-  const apiKey = requireEnv('DEEPSEEK_API_KEY');
+async function chamar(mensagens: Mensagem[]): Promise<Resposta> {
+  const apiKey = requireEnv('GROQ_API_KEY');
 
   const response = await fetch(ENDPOINT, {
     method: 'POST',
@@ -62,26 +61,22 @@ async function chamar(mensagens: MensagemDeepSeek[]): Promise<RespostaDeepSeek> 
   if (!response.ok) {
     const detalhe = await response.text().catch(() => '');
 
-    // 402 significa conta sem saldo. Dizer so o numero deixa a pessoa sem saber
-    // o que fazer — e a saida aqui nao e obvia.
-    if (response.status === 402) {
+    if (response.status === 429) {
       throw new Error(
-        'A conta do DeepSeek esta sem saldo. Ou adicione credito em ' +
-          'platform.deepseek.com, ou troque o provedor em packages/config ' +
-          '(models.analysis) para `analysisProviders.groq`, que e gratuito.',
+        'Groq recusou por limite de uso (HTTP 429). A camada gratuita tem teto por minuto — ' +
+          'espere um pouco e rode de novo.',
       );
     }
     if (response.status === 401) {
-      throw new Error('DeepSeek recusou a chave (HTTP 401). Confira o secret DEEPSEEK_API_KEY.');
+      throw new Error('Groq recusou a chave (HTTP 401). Confira o secret GROQ_API_KEY.');
     }
 
-    throw new Error(`DeepSeek recusou (HTTP ${response.status}): ${detalhe.slice(0, 400)}`);
+    throw new Error(`Groq recusou (HTTP ${response.status}): ${detalhe.slice(0, 400)}`);
   }
 
-  return (await response.json()) as RespostaDeepSeek;
+  return (await response.json()) as Resposta;
 }
 
-/** Tira cerca de codigo, que o modelo as vezes coloca mesmo em modo json. */
 function limpar(texto: string): string {
   return texto
     .trim()
@@ -90,22 +85,12 @@ function limpar(texto: string): string {
     .trim();
 }
 
-type Bloco = { type: string; text?: string; image_url?: { url: string } };
-
-/**
- * Nucleo generico: manda blocos (texto e imagem), exige json, valida contra o
- * schema, e da UMA segunda chance levando o erro de volta ao modelo.
- *
- * Sem json_schema no provedor, e esta funcao que garante o formato — e ela vale
- * tanto para o roteiro quanto para a sintese do perfil.
- */
 async function pedirJson<T>(params: {
   sistema: string;
   blocos: Bloco[];
   schema: z.ZodType<T>;
-  imagensEnviadas: number;
 }): Promise<{ dado: T; entrada: number; saida: number; tentativas: number }> {
-  const mensagens: MensagemDeepSeek[] = [
+  const mensagens: Mensagem[] = [
     { role: 'system', content: params.sistema },
     { role: 'user', content: params.blocos },
   ];
@@ -120,23 +105,12 @@ async function pedirJson<T>(params: {
 
     const bruto = resposta.choices?.[0]?.message?.content ?? '';
 
-    // Resposta vazia e uma falha conhecida do modo json do DeepSeek.
-    if (!bruto.trim()) {
-      if (tentativa === 2) throw new Error('DeepSeek devolveu resposta vazia duas vezes.');
-      mensagens.push({ role: 'assistant', content: '' });
-      mensagens.push({
-        role: 'user',
-        content: 'Sua resposta veio vazia. Responda apenas com o objeto json pedido.',
-      });
-      continue;
-    }
-
     let candidato: unknown;
     try {
       candidato = JSON.parse(limpar(bruto));
     } catch (erro) {
       if (tentativa === 2) {
-        throw new Error(`DeepSeek nao devolveu json valido: ${(erro as Error).message}`);
+        throw new Error(`Groq nao devolveu json valido: ${(erro as Error).message}`);
       }
       mensagens.push({ role: 'assistant', content: bruto.slice(0, 2000) });
       mensagens.push({
@@ -156,9 +130,7 @@ async function pedirJson<T>(params: {
       .map((i) => `${i.path.join('.')}: ${i.message}`)
       .join('; ');
 
-    if (tentativa === 2) {
-      throw new Error(`DeepSeek devolveu json fora do formato: ${problemas}`);
-    }
+    if (tentativa === 2) throw new Error(`Groq devolveu json fora do formato: ${problemas}`);
 
     mensagens.push({ role: 'assistant', content: bruto.slice(0, 2000) });
     mensagens.push({
@@ -167,7 +139,7 @@ async function pedirJson<T>(params: {
     });
   }
 
-  throw new Error('DeepSeek nao produziu resposta valida.');
+  throw new Error('Groq nao produziu resposta valida.');
 }
 
 function custoDe(entrada: number, saida: number): number {
@@ -178,7 +150,6 @@ function custoDe(entrada: number, saida: number): number {
 }
 
 export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaResultado> {
-  // As imagens vao como data URL, o caminho documentado para arquivo local.
   const blocos: Bloco[] = [{ type: 'text', text: montarContexto(ctx) }];
 
   for (const frame of ctx.frames) {
@@ -198,7 +169,6 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
     sistema: SISTEMA,
     blocos,
     schema: structuredScriptSchema,
-    imagensEnviadas: ctx.frames.length,
   });
 
   return {
@@ -217,14 +187,8 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
 export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResultado> {
   const { dado, entrada, saida, tentativas } = await pedirJson({
     sistema: SISTEMA_PERFIL,
-    blocos: [
-      {
-        type: 'text',
-        text: `${montarContextoPerfil(ctx)}\n\n${FORMATO_JSON_PERFIL}`,
-      },
-    ],
+    blocos: [{ type: 'text', text: `${montarContextoPerfil(ctx)}\n\n${FORMATO_JSON_PERFIL}` }],
     schema: profileSynthesisSchema,
-    imagensEnviadas: 0,
   });
 
   return {

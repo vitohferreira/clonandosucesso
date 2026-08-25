@@ -7,6 +7,10 @@ import {
   estruturarRoteiro as roteiroDeepseek,
   sintetizarPerfil as perfilDeepseek,
 } from './deepseek';
+import {
+  estruturarRoteiro as roteiroGroq,
+  sintetizarPerfil as perfilGroq,
+} from './groq-vision';
 import type {
   ContextoPerfil,
   ContextoVideo,
@@ -28,6 +32,8 @@ export type {
  */
 export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaResultado> {
   switch (models.analysis.provider) {
+    case 'groq':
+      return roteiroGroq(ctx);
     case 'deepseek':
       return roteiroDeepseek(ctx);
     case 'anthropic':
@@ -44,6 +50,8 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
 /** Sintese do perfil, pelo mesmo provedor ativo. */
 export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResultado> {
   switch (models.analysis.provider) {
+    case 'groq':
+      return perfilGroq(ctx);
     case 'deepseek':
       return perfilDeepseek(ctx);
     case 'anthropic':

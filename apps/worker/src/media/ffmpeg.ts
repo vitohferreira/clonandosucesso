@@ -118,8 +118,10 @@ export async function detectScenes(inputPath: string): Promise<number[]> {
 export function chooseFrameTimestamps(
   sceneTimestamps: number[],
   durationSeconds: number,
+  tetoDeFrames: number = media.frames.maxSentToModel,
 ): number[] {
-  const total = media.frames.maxSentToModel;
+  // O provedor ativo pode aceitar menos imagens que o nosso teto; vale o menor.
+  const total = Math.max(1, Math.min(tetoDeFrames, media.frames.maxSentToModel));
   const janela = Math.min(media.hookWindowSeconds, durationSeconds);
   const vagasGancho = Math.max(1, Math.round(total * media.frames.hookFrameShare));
   const vagasCorpo = total - vagasGancho;

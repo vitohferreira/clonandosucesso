@@ -1,6 +1,6 @@
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { media } from '@molde/config';
+import { media, models } from '@molde/config';
 import { saveVideoAnalysis, uploadFile } from '@molde/db';
 import type { MediaSource, VideoAnalysis } from '@molde/shared';
 import { estruturarRoteiro } from '../ai';
@@ -66,7 +66,7 @@ export async function analisarVideoLocal(entrada: EntradaPipeline): Promise<Said
 
   await passo('detectando os cortes');
   const cortes = await detectScenes(videoLocal);
-  const instantes = chooseFrameTimestamps(cortes, info.durationSeconds);
+  const instantes = chooseFrameTimestamps(cortes, info.durationSeconds, models.analysis.maxImages);
   const frames = await extractFrames(videoLocal, instantes, join(pastaDeTrabalho, 'frames'));
   const mediaPlano = averageShotSeconds(cortes, info.durationSeconds);
 

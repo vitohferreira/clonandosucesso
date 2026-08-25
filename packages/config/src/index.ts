@@ -148,8 +148,9 @@ export const media = {
     /** Teto de frames extraidos e guardados em disco. */
     maxExtracted: 200,
     /**
-     * Teto de frames efetivamente ENVIADOS ao modelo. Um reel de 90s pode gerar
-     * 100+ frames; mandar todos e caro e nao melhora a analise.
+     * Teto de frames enviados ao modelo, quando o provedor nao impoe um menor.
+     * Um reel de 90s pode gerar 100+ frames; mandar todos e caro e nao melhora a
+     * analise. O limite efetivo e o MENOR entre este e `maxImages` do provedor.
      */
     maxSentToModel: 24,
     /**
@@ -196,6 +197,23 @@ export const media = {
  */
 export const analysisProviders = {
   /**
+   * Groq com modelo de visao. GRATUITO: usa a MESMA chave que ja transcreve o
+   * audio, entao nao exige conta nova nem cartao.
+   *
+   * Em troca: le texto pequeno na tela com menos precisao que o Claude, e aceita
+   * poucas imagens por requisicao — por isso `maxImages` e baixo aqui, e a
+   * amostragem de quadros se ajusta sozinha.
+   */
+  groq: {
+    provider: 'groq' as const,
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    maxTokens: 8_000,
+    maxImages: 5,
+    usdPerMillionInput: 0,
+    usdPerMillionOutput: 0,
+  },
+
+  /**
    * DeepSeek V4 Flash Vision (experimental). Bem mais barato.
    * Ressalvas que valem lembrar: nao aceita json_schema (a validacao do formato
    * e feita na aplicacao) e comprime cada imagem para no maximo 384 tokens, o
@@ -206,6 +224,7 @@ export const analysisProviders = {
     provider: 'deepseek' as const,
     model: 'deepseek-v4-flash-vision-exp',
     maxTokens: 16_000,
+    maxImages: 24,
     usdPerMillionInput: 0.44,
     usdPerMillionOutput: 1.32,
   },
@@ -215,6 +234,7 @@ export const analysisProviders = {
     provider: 'anthropic' as const,
     model: 'claude-sonnet-5',
     maxTokens: 16_000,
+    maxImages: 24,
     usdPerMillionInput: 3,
     usdPerMillionOutput: 15,
   },
@@ -233,8 +253,14 @@ export const models = {
     maxUploadBytes: 24 * 1024 * 1024,
   },
 
-  /** <<< TROQUE AQUI para mudar de provedor de analise. */
-  analysis: analysisProviders.deepseek as AnalysisProvider,
+  /**
+   * <<< TROQUE AQUI para mudar de provedor de analise.
+   *
+   * Padrao: groq, porque e gratuito e reaproveita a chave da transcricao. Para
+   * melhor leitura de texto na tela, troque para `anthropic` (pago) ou
+   * `deepseek` (barato).
+   */
+  analysis: analysisProviders.groq as AnalysisProvider,
 } as const;
 
 /**
