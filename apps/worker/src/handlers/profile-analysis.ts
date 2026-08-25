@@ -24,25 +24,21 @@ import {
 } from '@molde/shared';
 import { sintetizarPerfil, type PostDestacado } from '../ai';
 import { cadencia, distribuicaoDeFormato, faixasDeDuracao } from '../analysis/aggregate';
+import { coletorAtivo } from '../collector';
 import { analisarVideoLocal, comPastaDeTrabalho } from '../media/pipeline';
-import { abrirSessao, conferirBloqueio } from '../scraper/browser';
 import { pausaEntreAcoes } from '../scraper/human';
-import {
-  coletarDestaques,
-  coletarGrade,
-  coletarSugestoes,
-  visitarPerfil,
-  visitarPost,
-} from '../scraper/profile';
 import type { Handler } from './index';
 
 /**
  * Modulo A — de um @ a um dossie.
  *
+ * A FONTE do dado e trocavel (`collection.source`): API oficial ou navegador
+ * com sessao. Este arquivo nao sabe qual esta ativa — so pergunta ao coletor.
+ *
  * A ordem das etapas nao e arbitraria, e economia de teto: primeiro o que e
- * barato (perfil e grade, que vem do JSON que a pagina ja busca), e so depois o
- * que custa (abrir post, baixar video). Assim, se o teto estourar no meio, o
- * que ficou salvo ja e a parte mais valiosa.
+ * barato (perfil e listagem), e so depois o que custa (abrir post, baixar
+ * video). Assim, se o teto estourar no meio, o que ficou salvo ja e a parte
+ * mais valiosa.
  *
  * Nada aqui e transacional: cada post e gravado assim que coletado. Se o worker
  * morrer no post 80 de 100, os 80 estao no banco.
@@ -80,10 +76,13 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
   const payload = profileAnalysisPayloadSchema.parse(job.payload);
   const handle = payload.handle;
 
-  // Confere o teto ANTES de abrir navegador: se nao cabe hoje, nem comecamos.
+  // Confere o teto ANTES de qualquer coisa: se nao cabe hoje, nem comecamos.
   await ensureCapacity('profiles_analyzed', 1);
 
-  const sessao = await abrirSessao(log);
+  const coletor = coletorAtivo();
+  log.info('fonte de coleta', { fonte: coletor.nome, arriscado: coletor.arriscado });
+
+  const coleta = await coletor.coletar(handle, log, job.id);
   let custoTotal = 0;
   let postsAbertos = 0;
   let videosAnalisados = 0;
@@ -91,8 +90,8 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
 
   try {
     /* ------------------------------------------------------------ 1. perfil */
-    await progress('abrindo o perfil', { current: 1, total: TOTAL_ETAPAS, message: `@${handle}` });
-    const coletado = await visitarPerfil(sessao, handle, log, job.id);
+    await progress('lendo o perfil', { current: 1, total: TOTAL_ETAPAS, message: `@${handle}` });
+    const coletado = coleta.perfil;
 
     const perfil = await upsertProfile({
       handle: coletado.handle,
@@ -110,9 +109,9 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
       postsCount: coletado.postsCount,
     });
 
-    /* ------------------------------------------------------------- 2. grade */
-    await progress('percorrendo a grade', { current: 2, total: TOTAL_ETAPAS });
-    const grade = await coletarGrade(sessao, log);
+    /* ---------------------------------------------------------- 2. listagem */
+    await progress('lendo as publicacoes', { current: 2, total: TOTAL_ETAPAS });
+    const grade = coleta.midias;
 
     // Gravacao incremental: cada post entra no banco assim que e lido.
     for (const midia of grade) {
@@ -135,12 +134,12 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
     log.info('grade gravada', { posts: grade.length });
 
     /* -------------------------------------------- 3. destaques e sugestoes */
+    // A via oficial nao entrega nenhum dos dois; os arrays vem vazios e as
+    // funcoes abaixo simplesmente nao fazem nada.
     await progress('lendo destaques', { current: 3, total: TOTAL_ETAPAS });
-    const destaques = await coletarDestaques(sessao, log);
+    const destaques = coleta.destaques;
     await saveHighlights(perfil.id, destaques);
-
-    const sugeridos = await coletarSugestoes(sessao);
-    await saveSimilarProfiles(perfil.id, sugeridos, 'instagram_suggested');
+    await saveSimilarProfiles(perfil.id, coleta.sugestoes, 'instagram_suggested');
 
     /* ---------------------------------------------------------- 4. metricas */
     if (signal.aborted) throw new Error('Worker encerrando antes do calculo');
@@ -179,13 +178,16 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
       const destacado = paraDestacado(post, metrica);
 
       try {
-        // Abrir post custa teto: por isso so os outliers sao abertos.
-        await ensureCapacity('posts_opened', 1);
-        const { midia, comentarios } = await visitarPost(sessao, post.shortcode, log, job.id, {
-          lerComentarios: true,
-        });
-        await consume('posts_opened', 1);
-        postsAbertos++;
+        // Abrir post so custa teto quando a fonte navega de verdade. Na via
+        // oficial o dado ja veio na listagem.
+        if (coletor.arriscado) await ensureCapacity('posts_opened', 1);
+
+        const { midia, comentarios } = await coleta.abrirPost(post.shortcode);
+
+        if (coletor.arriscado) {
+          await consume('posts_opened', 1);
+          postsAbertos++;
+        }
 
         if (midia) {
           await upsertPost({
@@ -210,15 +212,13 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
         // Video que explodiu recebe o pipeline completo de roteiro.
         const ehVideo = post.type === 'reel' || post.type === 'video';
         if (ehVideo && midia?.videoUrl) {
+          // Este teto vale para as duas fontes: aqui ele e controle de CUSTO,
+          // nao de risco — cada video processado gasta API paga.
           await ensureCapacity('videos_downloaded', 1);
 
           const saida = await comPastaDeTrabalho(job.id, post.shortcode, async (pasta) => {
             const caminho = join(pasta, 'fonte.mp4');
-            const resposta = await sessao.context.request.get(midia.videoUrl as string);
-            if (!resposta.ok()) {
-              throw new Error(`CDN recusou o video (HTTP ${resposta.status()})`);
-            }
-            await writeFile(caminho, await resposta.body());
+            await writeFile(caminho, await coleta.baixarVideo(midia));
 
             return analisarVideoLocal({
               videoLocal: caminho,
@@ -260,8 +260,9 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
       }
 
       destacados.push(destacado);
-      conferirBloqueio(sessao);
-      await pausaEntreAcoes();
+
+      // A pausa entre acoes so faz sentido quando ha navegador do outro lado.
+      if (coletor.arriscado) await pausaEntreAcoes();
     }
 
     /* ------------------------------------------------------- 6. a sintese */
@@ -338,6 +339,6 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
       costUsd: Number(custoTotal.toFixed(6)),
     };
   } finally {
-    await sessao.fechar();
+    await coleta.fechar();
   }
 };

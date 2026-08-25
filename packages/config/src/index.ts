@@ -229,6 +229,20 @@ export const models = {
  * que coletado. Isso define quando vale a pena reabrir um post ja coletado.
  */
 export const collection = {
+  /**
+   * De onde vem o dado do perfil. <<< TROQUE AQUI para mudar de fonte.
+   *
+   *   'graph'   API oficial do Instagram (Business Discovery). Risco ZERO para
+   *             a sua conta e roda em qualquer lugar, inclusive no GitHub
+   *             Actions. Alcanca so perfil profissional e publico, e nao traz
+   *             texto de comentario, destaques nem perfis sugeridos.
+   *
+   *   'scraper' Navegador com a sua sessao. Alcanca tudo, mas exige rodar numa
+   *             maquina sua (a sessao e do seu IP residencial) e carrega risco
+   *             de bloqueio da conta.
+   */
+  source: 'graph' as 'graph' | 'scraper',
+
   /** Post com detalhe coletado ha menos dias que isso nao e reaberto. */
   refetchDetailAfterDays: 30,
   /** Quantos posts do grid, no maximo, por analise de perfil. */

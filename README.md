@@ -226,18 +226,46 @@ no `.env` (ou nos secrets do GitHub).
 
 ## Como a coleta funciona
 
-O scraper prefere **ler o JSON que a própria página já busca** a raspar o DOM
-ofuscado do Instagram. É mais estável (a classe CSS muda toda semana, a chave do
-payload quase nunca) e não gera requisição nova — só escutamos o que ia carregar
-de qualquer jeito. O DOM é o plano B, e os dois formatos que o Instagram serve
-(API v1 e GraphQL) são normalizados para um só.
+Existem **duas fontes**, e `collection.source` em `packages/config` escolhe qual.
+O handler do Módulo A não sabe qual está ativa.
 
-Tudo que conhece a forma do Instagram vive em `apps/worker/src/scraper/selectors.ts`.
-Quando quebrar, conserta-se ali e em lugar nenhum mais.
+### `graph` — API oficial (padrão)
 
-A ordem das etapas é economia de teto: primeiro o barato (perfil e grade, que vêm
-do JSON), depois o caro (abrir post, baixar vídeo) e só nos outliers. Se o teto
-estourar no meio, o que ficou salvo já é a parte mais valiosa.
+Business Discovery do Instagram Graph API. **Risco zero para a sua conta**, e roda
+em qualquer lugar — inclusive dentro do GitHub Actions, o que dispensa manter
+máquina ligada.
+
+| Entrega | Não entrega |
+|---|---|
+| Perfil, seguidores, bio, link | Texto dos comentários (só a contagem) |
+| Curtidas e comentários por post | Destaques fixados |
+| Tipo de mídia e timestamp | Perfis sugeridos |
+| **O arquivo do vídeo** (`media_url`) | Perfil pessoal ou privado |
+
+Ou seja: **a detecção de outlier e a extração de roteiro funcionam inteiras.**
+O que se perde é periférico.
+
+Uma nota sobre os números: as curtidas aqui são métrica **orgânica**, enquanto o
+app mostra orgânico + impulsionado. Como a diferença é consistente entre os
+posts, a detecção de outlier continua valendo — mas o número absoluto pode ser
+menor do que o que você vê na tela.
+
+### `scraper` — navegador com a sua sessão
+
+Alcança o que a API não alcança, mas **exige rodar numa máquina sua** (a sessão é
+do seu IP residencial) e carrega risco de bloqueio. Não é o padrão.
+
+Ele lê o JSON que a própria página já busca, em vez de raspar o DOM ofuscado: a
+classe CSS muda toda semana, a chave do payload quase nunca. O DOM é o plano B.
+Tudo que conhece a forma do Instagram vive em `apps/worker/src/scraper/selectors.ts` —
+quando quebrar, conserta-se ali e em lugar nenhum mais.
+
+### Em comum
+
+A ordem das etapas é economia: primeiro o barato (perfil e listagem), depois o
+caro (abrir post, baixar vídeo) e só nos outliers. Se o teto estourar no meio, o
+que ficou salvo já é a parte mais valiosa — e a gravação é incremental, post a
+post.
 
 ## Detecção de outlier
 

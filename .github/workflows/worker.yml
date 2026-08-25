@@ -1,12 +1,13 @@
 # Roda o worker aqui dentro do GitHub, sob demanda.
 #
-# Existe para o Molde funcionar sem depender de uma maquina sua ligada. Vale para
-# a Fase 0 e para a Fase 1, que nao tocam no Instagram.
+# Com a fonte de coleta OFICIAL (`collection.source = 'graph'`, o padrao), tudo
+# roda aqui: extracao de roteiro E analise de perfil. Nao existe navegador nem
+# sessao envolvida, entao nao ha risco nenhum para a sua conta do Instagram.
 #
-# ATENCAO para a Fase 2 em diante: o scraping NAO pode rodar aqui. A sessao do
-# Instagram e do seu IP residencial, e navegar com ela a partir de um datacenter
-# e o padrao que mais dispara checkpoint. Naquela fase o worker volta para a sua
-# maquina.
+# So se voce trocar para `collection.source = 'scraper'` isto deixa de valer: a
+# sessao do Instagram e do seu IP residencial, e navegar com ela a partir de um
+# datacenter e o padrao que mais dispara checkpoint. Nesse caso o worker precisa
+# rodar numa maquina sua.
 name: Worker
 
 on:
@@ -56,6 +57,9 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Coleta pela API oficial do Instagram (Business Discovery).
+          IG_GRAPH_TOKEN: ${{ secrets.IG_GRAPH_TOKEN }}
+          IG_GRAPH_USER_ID: ${{ secrets.IG_GRAPH_USER_ID }}
         run: |
           set +e
           # O worker e um loop infinito de proposito. O timeout manda SIGTERM,

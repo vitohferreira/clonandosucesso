@@ -7,6 +7,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+import { collection, models } from '@molde/config';
 import { repoRoot } from '../src/env';
 
 const TABELAS = [
@@ -63,6 +64,57 @@ checa(!!process.env.APP_PASSWORD, 'APP_PASSWORD definido', 'APP_PASSWORD vazio',
 const segredo = process.env.SESSION_SECRET ?? '';
 checa(segredo.length >= 32, 'SESSION_SECRET definido', 'SESSION_SECRET vazio ou curto demais',
   'Gere com: node -e "console.log(crypto.randomUUID()+crypto.randomUUID())"');
+
+// ---------- chaves das APIs
+console.log('\n\x1b[90mAPIs\x1b[0m');
+
+checa(
+  !!process.env.GROQ_API_KEY,
+  'GROQ_API_KEY presente (transcricao)',
+  'GROQ_API_KEY ausente — sem ela nao ha transcricao',
+  'Gratuita e sem cartao em console.groq.com',
+);
+
+const provedor = models.analysis.provider;
+const chaveDoProvedor =
+  provedor === 'deepseek' ? process.env.DEEPSEEK_API_KEY : process.env.ANTHROPIC_API_KEY;
+const nomeDaChave = provedor === 'deepseek' ? 'DEEPSEEK_API_KEY' : 'ANTHROPIC_API_KEY';
+
+checa(
+  !!chaveDoProvedor,
+  `${nomeDaChave} presente (analise via ${models.analysis.model})`,
+  `${nomeDaChave} ausente — o provedor ativo e "${provedor}"`,
+  'Troque o provedor em packages/config (models.analysis) ou preencha a chave',
+);
+
+// ---------- fonte de coleta
+console.log('\n\x1b[90mColeta de perfil\x1b[0m');
+
+if (collection.source === 'graph') {
+  ok('fonte: API oficial (sem risco para a sua conta)');
+  checa(
+    !!process.env.IG_GRAPH_TOKEN,
+    'IG_GRAPH_TOKEN presente',
+    'IG_GRAPH_TOKEN ausente',
+    'Gere no painel do Meta, em developers.facebook.com',
+  );
+  checa(
+    !!process.env.IG_GRAPH_USER_ID,
+    'IG_GRAPH_USER_ID presente',
+    'IG_GRAPH_USER_ID ausente',
+    'E o id da SUA conta profissional, nao o do perfil que voce quer analisar',
+  );
+} else {
+  ok('fonte: navegador com sessao');
+  const sessao = resolve(repoRoot, 'apps/worker/data/session/instagram.json');
+  checa(
+    existsSync(sessao),
+    'sessao do Instagram salva',
+    'sessao do Instagram nao encontrada',
+    'Rode `npm run login` NA SUA MAQUINA (nao funciona dentro do container)',
+  );
+  console.log('      \x1b[33m! esta fonte precisa rodar numa maquina sua, e tem risco de bloqueio\x1b[0m');
+}
 
 // ---------- banco
 if (url && chave) {
