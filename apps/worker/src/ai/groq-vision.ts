@@ -3,6 +3,7 @@ import { analysisProviders } from '@molde/config';
 import { profileSynthesisSchema, structuredScriptSchema } from '@molde/shared';
 import { requireEnv } from '../env';
 import type { Logger } from '../logger';
+import { idsDoGroq, rankear } from './groq-modelos';
 import { chamarApi } from './http';
 import {
   FORMATO_JSON,
@@ -37,7 +38,6 @@ const PERFIL = analysisProviders.groq;
  * contra o schema e dando uma segunda chance com o erro de volta ao modelo.
  */
 const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-const LISTA = 'https://api.groq.com/openai/v1/models';
 
 /**
  * O Groq aposenta nome de modelo com frequencia — e mais rapido que o Google.
@@ -89,35 +89,17 @@ function pontuar(id: string): number {
 }
 
 async function listarModelos(apiKey: string): Promise<string[]> {
-  const r = await chamarApi(LISTA, {
-    method: 'GET',
-    headers: { authorization: `Bearer ${apiKey}` },
-  }, 'Groq');
-
-  if (!r.ok) {
-    throw new Error(
-      `Nao consegui listar os modelos do Groq (HTTP ${r.status}). Confira a GROQ_API_KEY.`,
-    );
-  }
-
-  const dados = (await r.json()) as { data?: Array<{ id?: string }> };
-
-  const candidatos = (dados.data ?? [])
-    .map((m) => m.id ?? '')
-    .filter((id) => id.length > 0)
-    .map((id) => ({ id, pontos: pontuar(id) }))
-    .filter((c) => c.pontos > 0)
-    .sort((a, b) => b.pontos - a.pontos);
+  const todos = await idsDoGroq(apiKey);
+  const candidatos = rankear(todos, pontuar);
 
   if (candidatos.length === 0) {
-    const todos = (dados.data ?? []).map((m) => m.id).filter(Boolean).join(', ');
     throw new Error(
       'A sua chave do Groq nao alcanca nenhum modelo que enxergue imagem. ' +
-        `Modelos disponiveis: ${todos.slice(0, 300) || 'nenhum'}.`,
+        `Modelos disponiveis: ${todos.join(', ').slice(0, 300) || 'nenhum'}.`,
     );
   }
 
-  return candidatos.map((c) => c.id);
+  return candidatos;
 }
 
 /** Avanca para o proximo modelo da lista. null = acabaram. */

@@ -275,7 +275,20 @@ export type AnalysisProvider =
 export const models = {
   transcription: {
     provider: 'groq' as const,
+    /**
+     * PREFERENCIA, nao nome fixo: se o Groq aposentar este modelo, o worker
+     * pergunta a propria API qual Whisper existe e usa o equivalente.
+     */
     model: 'whisper-large-v3-turbo',
+    /**
+     * Idioma da fala. `null` = o Whisper detecta sozinho.
+     *
+     * Detectar e o certo aqui: a ferramenta serve para engenharia reversa de
+     * perfil, e boa parte das referencias que valem a pena estudar e de perfil
+     * gringo. Forcar 'pt' num video em ingles nao da erro — da uma transcricao
+     * errada, que e pior, porque parece que funcionou.
+     */
+    language: null as string | null,
     /** USD por hora de audio. O plano gratuito do Groq cobre 8h por dia. */
     usdPerAudioHour: 0.04,
     /** Teto de tamanho por requisicao. Acima disso o audio precisa ser fatiado. */

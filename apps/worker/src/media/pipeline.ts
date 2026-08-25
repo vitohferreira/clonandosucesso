@@ -62,7 +62,7 @@ export async function analisarVideoLocal(entrada: EntradaPipeline): Promise<Said
   const audio = await extractAudio(videoLocal, audioLocal);
 
   await passo('transcrevendo a fala');
-  const transcricao = await transcribe(audio, `${jobId}.${media.audio.format}`);
+  const transcricao = await transcribe(audio, `${jobId}.${media.audio.format}`, log);
 
   await passo('detectando os cortes');
   const cortes = await detectScenes(videoLocal);
@@ -118,7 +118,11 @@ export async function analisarVideoLocal(entrada: EntradaPipeline): Promise<Said
     avgShotSeconds: mediaPlano,
     shotBoundaries: { timestamps: cortes, framesEnviados: instantes },
     modelUsed: analise.modelUsed,
-    usage: { ...analise.usage, audio_seconds: transcricao.audioSeconds },
+    usage: {
+      ...analise.usage,
+      audio_seconds: transcricao.audioSeconds,
+      modelo_transcricao: transcricao.modelUsed,
+    },
     costUsd: custoUsd,
   });
 
