@@ -17,6 +17,69 @@
 export const TIMEZONE = 'America/Sao_Paulo';
 
 /**
+ * ESCOPO CONGELADO.
+ *
+ * Tudo aqui esta construido e continua no repositorio, mas fora do caminho de
+ * execucao: nao roda, nao aparece na tela, nao quebra o build. Ligar de novo e
+ * trocar `false` por `true` — nenhum codigo foi apagado.
+ */
+export const escopo = {
+  /** Coleta pela API oficial do Meta (Business Discovery). */
+  apiDoMeta: false,
+  /** Navegador com a SUA sessao logada. Ver `seguranca` abaixo. */
+  sessaoLogada: false,
+  /** Biblioteca de ganchos como tela e busca proprias. */
+  bibliotecaDeGanchos: false,
+  /** Destaques, comentarios, perfis semelhantes, embeddings. */
+  destaques: false,
+  comentarios: false,
+  perfisSemelhantes: false,
+  embeddings: false,
+  /** Quadros de video e leitura de tela pelo modelo de visao. */
+  analiseVisual: false,
+} as const;
+
+/**
+ * SEGURANCA DA SUA CONTA.
+ *
+ * A regra e uma so e nao tem excecao: nenhuma credencial sua chega ao
+ * Instagram. Sem login, sem cookie, sem sessao, sem senha. O que nao e enviado
+ * nao pode ser associado a voce, e o que nao pode ser associado a voce nao pode
+ * ser punido.
+ *
+ * Isto NAO e so um comentario: `apps/worker/src/ingest/seguranca.ts` conferre
+ * cada chamada antes de sair, e derruba o processo se alguma credencial
+ * aparecer. Uma promessa em comentario se perde na proxima refatoracao; uma
+ * verificacao em codigo, nao.
+ */
+export const seguranca = {
+  /**
+   * Proibido em qualquer requisicao ao Instagram. Se alguem, um dia, tentar
+   * "melhorar a taxa de sucesso" ligando cookie, o worker para na hora em vez
+   * de expor a sua conta em silencio.
+   */
+  jamaisEnviarCredencial: true,
+
+  /**
+   * Espera aleatoria entre duas requisicoes ao Instagram, mesmo deslogado.
+   * Nao e para escapar de nada: e para nao parecer rajada de robo e nao
+   * atrapalhar o servidor deles.
+   */
+  esperaEntreRequisicoesMs: { min: 3_000, max: 9_000 },
+
+  /** Teto de requisicoes ao Instagram por job. Rede de seguranca. */
+  maxRequisicoesPorJob: 40,
+
+  /**
+   * Identificacao enviada. Um navegador comum, sem nada que finja ser outra
+   * coisa nem que se passe por app oficial.
+   */
+  userAgent:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+} as const;
+
+/**
  * Comportamento do navegador. Existe para nao parecer robo.
  * Nenhum valor aqui e fixo de proposito: intervalo fixo e assinatura de automacao.
  */
@@ -307,6 +370,36 @@ export const models = {
 } as const;
 
 /**
+ * Ingestao por link, sem login e sem API do Meta.
+ *
+ * Tres camadas, tentadas em ordem, e a UI mostra qual resolveu. Se a camada 1
+ * estiver falhando na maioria das vezes, isso aparece no contador antes de
+ * virar frustracao — que e exatamente o ponto de medir.
+ */
+export const ingest = {
+  /**
+   * Versao travada do yt-dlp. Nao escrevemos extrator proprio de Instagram:
+   * o yt-dlp ja mantem isso e sobrevive as mudancas da plataforma. Travar a
+   * versao evita que um `pip install` mude o comportamento sem aviso; para
+   * atualizar, troque aqui e no workflow.
+   */
+  ytdlpVersion: '2026.8.19',
+
+  /** Tempo maximo que o yt-dlp pode gastar num link. */
+  timeoutMs: 120_000,
+
+  /**
+   * Camada 2: pagina publica de embed. Nao traz o arquivo de video, traz
+   * metadado e thumbnail — serve para o job falhar dizendo O QUE e o post, em
+   * vez de falhar dizendo nada.
+   */
+  usarEmbed: true,
+
+  /** Quantos videos, no maximo, listar de um perfil. */
+  maxVideosPorPerfil: 24,
+} as const;
+
+/**
  * Coleta incremental. O scraping nao e transacional: cada post e gravado assim
  * que coletado. Isso define quando vale a pena reabrir um post ja coletado.
  */
@@ -338,6 +431,9 @@ export const collection = {
 /** Config completa em um objeto so, para logar ou serializar de uma vez. */
 export const config = {
   TIMEZONE,
+  escopo,
+  seguranca,
+  ingest,
   scraping,
   dailyCaps,
   queue,

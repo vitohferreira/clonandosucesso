@@ -1,5 +1,6 @@
 import type { JobRow, JobType } from '@molde/shared';
 import type { Logger } from '../logger';
+import { linkProbe } from './link-probe';
 import { ping } from './ping';
 import { profileAnalysis } from './profile-analysis';
 import { videoExtraction } from './video-extraction';
@@ -35,6 +36,7 @@ export type Handler = (ctx: HandlerContext) => Promise<HandlerResult>;
  */
 export const handlers: Partial<Record<JobType, Handler>> = {
   ping,
+  link_probe: linkProbe,
   video_extraction: videoExtraction,
   profile_analysis: profileAnalysis,
 };

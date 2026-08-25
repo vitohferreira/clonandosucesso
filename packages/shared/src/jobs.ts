@@ -7,7 +7,7 @@ import { isValidHandle, normalizeHandle } from './handle';
  * tres semanas depois.
  */
 
-export const JOB_TYPES = ['ping', 'profile_analysis', 'video_extraction'] as const;
+export const JOB_TYPES = ['ping', 'profile_analysis', 'video_extraction', 'link_probe'] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
 export const JOB_STATUSES = ['queued', 'running', 'done', 'failed', 'blocked'] as const;
@@ -29,6 +29,17 @@ export const profileAnalysisPayloadSchema = z.object({
     .refine(isValidHandle, { message: 'Handle invalido' }),
   /** Reabre posts que ja tem detalhe coletado, ignorando a janela de refetch. */
   forceRefetch: z.boolean().default(false),
+});
+
+/**
+ * Sondagem de link. Nao produz roteiro: descobre, no runner de verdade, o que
+ * o Instagram entrega para quem chega DESLOGADO — e registra qual camada
+ * resolveu. E o unico jeito honesto de saber a taxa de sucesso antes de
+ * construir em cima de uma suposicao.
+ */
+export const linkProbePayloadSchema = z.object({
+  /** O link cru, como voce colou. Quem interpreta e o worker. */
+  url: z.string().min(1).max(500),
 });
 
 export const videoExtractionPayloadSchema = z.discriminatedUnion('source', [
@@ -59,6 +70,7 @@ export const jobPayloadSchemas = {
   ping: pingPayloadSchema,
   profile_analysis: profileAnalysisPayloadSchema,
   video_extraction: videoExtractionPayloadSchema,
+  link_probe: linkProbePayloadSchema,
 } satisfies Record<JobType, z.ZodType>;
 
 /** O que a API aceita para criar um job. */
@@ -66,6 +78,7 @@ export const createJobSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ping'), payload: pingPayloadSchema }),
   z.object({ type: z.literal('profile_analysis'), payload: profileAnalysisPayloadSchema }),
   z.object({ type: z.literal('video_extraction'), payload: videoExtractionPayloadSchema }),
+  z.object({ type: z.literal('link_probe'), payload: linkProbePayloadSchema }),
 ]);
 
 export type CreateJobInput = z.input<typeof createJobSchema>;
@@ -140,6 +153,7 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   ping: 'Teste de fila',
   profile_analysis: 'Analise de perfil',
   video_extraction: 'Extracao de roteiro',
+  link_probe: 'Sondagem de link',
 };
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {

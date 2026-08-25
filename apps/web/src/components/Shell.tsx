@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Logo } from './Logo';
 
+// A biblioteca de ganchos esta congelada nesta etapa: a página continua no
+// repositório, só não tem porta de entrada. Religar é devolver a linha.
 const NAV = [
   { href: '/perfis', label: 'Perfis' },
   { href: '/videos', label: 'Vídeos' },
-  { href: '/ganchos', label: 'Ganchos' },
   { href: '/', label: 'Fila' },
 ];
 

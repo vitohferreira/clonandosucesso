@@ -37,6 +37,15 @@ jobs:
 
       # O runner do GitHub costuma ja trazer ffmpeg, mas isso nao e garantido
       # entre versoes de imagem. Sem ele a Fase 1 nao roda.
+      # O yt-dlp resolve o link do Instagram sem login. Versao TRAVADA de
+      # proposito: um `pip install yt-dlp` solto mudaria o comportamento sem
+      # aviso, e este e o passo mais fragil do pipeline. Para atualizar, troque
+      # aqui E em `ingest.ytdlpVersion` no packages/config.
+      - name: Instalar o yt-dlp
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check "yt-dlp==2026.8.19"
+          yt-dlp --version
+
       - name: Garantir o ffmpeg
         run: |
           if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then

@@ -1,6 +1,9 @@
-import { listJobs, remainingToday } from '@molde/db';
+import { listJobs, placarDeCamadas, remainingToday } from '@molde/db';
+import type { PlacarDeCamadas } from '@molde/db';
 import type { JobRow } from '@molde/shared';
 import { Dashboard, type LimitsSnapshot } from '@/components/Dashboard';
+import { PlacarCamadas } from '@/components/PlacarCamadas';
+import { SondarLink } from '@/components/SondarLink';
 import { Shell } from '@/components/Shell';
 
 export const dynamic = 'force-dynamic';
@@ -11,10 +14,15 @@ export default async function HomePage() {
   // de estourar uma pagina de erro.
   let jobs: JobRow[] = [];
   let limits: LimitsSnapshot | null = null;
+  let placar: PlacarDeCamadas | null = null;
   let setupError: string | null = null;
 
   try {
-    [jobs, limits] = await Promise.all([listJobs(50), remainingToday()]);
+    [jobs, limits, placar] = await Promise.all([
+      listJobs(50),
+      remainingToday(),
+      placarDeCamadas(),
+    ]);
   } catch (error) {
     setupError = error instanceof Error ? error.message : 'erro desconhecido';
   }
@@ -39,7 +47,11 @@ export default async function HomePage() {
 
   return (
     <Shell>
-      <Dashboard initialJobs={jobs} initialLimits={limits} />
+      <div className="space-y-5">
+        <SondarLink />
+        {placar && <PlacarCamadas placar={placar} />}
+        <Dashboard initialJobs={jobs} initialLimits={limits} />
+      </div>
     </Shell>
   );
 }

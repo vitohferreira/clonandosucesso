@@ -4,8 +4,12 @@ FROM mcr.microsoft.com/playwright:v1.62.1-noble
 
 # ffmpeg para extrair audio e frames. E o motivo de o worker nao caber na Vercel.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg \
+  && apt-get install -y --no-install-recommends ffmpeg python3 python3-pip \
   && rm -rf /var/lib/apt/lists/*
+
+# yt-dlp resolve o link do Instagram sem login. Versao travada: tem que bater
+# com `ingest.ytdlpVersion` no packages/config e com o workflow.
+RUN pip3 install --no-cache-dir --break-system-packages "yt-dlp==2026.8.19"
 
 WORKDIR /app
 

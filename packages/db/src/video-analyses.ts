@@ -1,3 +1,4 @@
+import { escopo } from '@molde/config';
 import type { Hook, MediaSource, StructuredScript, VideoAnalysis } from '@molde/shared';
 import { coerceNumeric, coerceNumericAll, serviceClient } from './client';
 
@@ -59,6 +60,11 @@ export async function saveVideoAnalysis(input: SaveVideoAnalysisInput): Promise<
 
   if (res.error) throw new Error(`saveVideoAnalysis: ${res.error.message}`);
   const analysis = coerceNumeric(res.data as VideoAnalysis, NUM_ANALISE);
+
+  // A biblioteca de ganchos e um RECURSO congelado nesta etapa. O `hook_text`
+  // continua sendo gravado em video_analyses (e uma coluna, nao custa nada) —
+  // o que para aqui e so a tabela que alimentaria a tela de busca.
+  if (!escopo.bibliotecaDeGanchos) return analysis;
 
   const hook = await db
     .from('hooks')
