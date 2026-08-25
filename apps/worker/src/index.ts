@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { config, queue } from '@molde/config';
+import { config, models, queue } from '@molde/config';
 import {
   blockJob,
   claimJob,
@@ -192,6 +192,11 @@ async function main() {
     dataDir: paths.data,
     timezone: config.TIMEZONE,
     pollIntervalMs: queue.pollIntervalMs,
+    // Qual versao do codigo esta rodando. Um worker so carrega o codigo uma vez,
+    // no inicio: se ele ficar de pe por 10 minutos, pega trabalhos novos com o
+    // codigo antigo. Sem esta linha, isso e invisivel e custa muito tempo.
+    commit: process.env.GITHUB_SHA?.slice(0, 7) ?? 'local',
+    analise: `${models.analysis.provider}:${models.analysis.model}`,
   });
 
   try {

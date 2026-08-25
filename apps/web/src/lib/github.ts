@@ -77,7 +77,15 @@ export async function ligarWorker(minutos = '10'): Promise<ResultadoDisparo> {
 
 /**
  * Se ja existe um worker rodando, nao adianta disparar outro: ele pegaria a fila
- * vazia. Consultamos as execucoes em andamento antes.
+ * vazia.
+ *
+ * ATENÇÃO ao efeito colateral: um worker carrega o código UMA vez, ao iniciar.
+ * Se ele estiver de pé desde antes de um deploy, vai processar trabalhos novos
+ * com o código antigo — por até 10 minutos. Quando você acabou de corrigir algo
+ * e quer testar, cancele a execução em andamento antes de reenfileirar.
+ *
+ * O worker anuncia o commit que carregou na primeira linha do log, justamente
+ * para esse descompasso ser visível.
  */
 export async function jaTemWorkerRodando(): Promise<boolean> {
   const token = process.env.GITHUB_TOKEN;
