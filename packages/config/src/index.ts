@@ -204,12 +204,13 @@ export const analysisProviders = {
    * A cota gratuita vale enquanto o faturamento estiver DESLIGADO no projeto do
    * Google — ligar cobranca faz a camada gratuita desaparecer.
    *
-   * Se o nome do modelo der 404, e porque o Google renomeou: confira no AI
-   * Studio e ajuste aqui.
+   * O nome abaixo e so a PREFERENCIA: o Google renomeia modelo com frequencia,
+   * e se este nao existir mais o codigo pergunta a propria API qual existe e usa
+   * o melhor equivalente, sem precisar de ninguem editar nada.
    */
   gemini: {
     provider: 'gemini' as const,
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash',
     maxTokens: 16_000,
     maxImages: 24,
     usdPerMillionInput: 0,

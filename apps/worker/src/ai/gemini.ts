@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import { models } from '@molde/config';
 import { profileSynthesisSchema, structuredScriptSchema } from '@molde/shared';
 import { requireEnv } from '../env';
+import type { Logger } from '../logger';
 import {
   FORMATO_JSON,
   FORMATO_JSON_PERFIL,
@@ -28,6 +29,70 @@ import {
  */
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+/**
+ * O Google renomeia os modelos com frequencia — 2.5 Flash virou legado, e a
+ * familia 3.x apareceu depois. Um nome chumbado no codigo quebra sozinho a cada
+ * poucos meses, entao o nome da config e apenas a PREFERENCIA: se ele nao
+ * existir mais, descobrimos o substituto perguntando a propria API.
+ */
+let modeloResolvido: string | null = null;
+
+interface ModeloListado {
+  name?: string;
+  supportedGenerationMethods?: string[];
+}
+
+/** Quanto este modelo serve para a nossa tarefa. Maior e melhor. */
+function pontuar(nome: string): number {
+  if (!nome.includes('gemini')) return -1;
+
+  let pontos = 0;
+
+  // Flash e o que a camada gratuita cobre.
+  if (nome.includes('flash')) pontos += 100;
+  // Lite e mais fraco; serve, mas so se nao houver Flash normal.
+  if (nome.includes('lite')) pontos -= 40;
+  // Preview e experimental tendem a ter cota menor e sumir sem aviso.
+  if (/preview|exp\b/.test(nome)) pontos -= 20;
+  // Pro saiu da camada gratuita em 2026.
+  if (nome.includes('pro')) pontos -= 60;
+
+  // Versao mais nova ganha: "gemini-3.7-flash" vence "gemini-3-flash".
+  const versao = nome.match(/gemini-(\d+(?:\.\d+)?)/)?.[1];
+  if (versao) pontos += Number(versao) * 10;
+
+  return pontos;
+}
+
+async function descobrirModelo(apiKey: string): Promise<string> {
+  const r = await fetch(`${BASE}?key=${encodeURIComponent(apiKey)}&pageSize=200`);
+  if (!r.ok) {
+    throw new Error(
+      `Nao consegui listar os modelos do Gemini (HTTP ${r.status}). Confira a GEMINI_API_KEY.`,
+    );
+  }
+
+  const dados = (await r.json()) as { models?: ModeloListado[] };
+
+  const candidatos = (dados.models ?? [])
+    .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+    .map((m) => (m.name ?? '').replace(/^models\//, ''))
+    .filter((nome) => nome.length > 0)
+    .map((nome) => ({ nome, pontos: pontuar(nome) }))
+    .filter((c) => c.pontos > 0)
+    .sort((a, b) => b.pontos - a.pontos);
+
+  const melhor = candidatos[0]?.nome;
+  if (!melhor) {
+    throw new Error(
+      'A sua chave do Gemini nao da acesso a nenhum modelo com generateContent. ' +
+        'Gere outra em aistudio.google.com/apikey.',
+    );
+  }
+
+  return melhor;
+}
+
 interface Parte {
   text?: string;
   inline_data?: { mime_type: string; data: string };
@@ -39,9 +104,10 @@ interface Resposta {
   error?: { message?: string; status?: string; code?: number };
 }
 
-async function chamar(sistema: string, partes: Parte[]): Promise<Resposta> {
+async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<Resposta> {
   const apiKey = requireEnv('GEMINI_API_KEY');
-  const url = `${BASE}/${models.analysis.model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const modelo = modeloResolvido ?? models.analysis.model;
+  const url = `${BASE}/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -63,11 +129,22 @@ async function chamar(sistema: string, partes: Parte[]): Promise<Resposta> {
   if (!response.ok || corpo.error) {
     const msg = corpo.error?.message ?? `HTTP ${response.status}`;
 
+    // Modelo renomeado ou aposentado: perguntamos a API qual existe agora e
+    // tentamos de novo, em vez de exigir que alguem edite a config.
+    if (response.status === 404 && !modeloResolvido) {
+      const substituto = await descobrirModelo(apiKey);
+      modeloResolvido = substituto;
+      log?.warn('modelo do Gemini nao existe mais; usando o substituto encontrado', {
+        configurado: models.analysis.model,
+        usando: substituto,
+      });
+      return chamar(sistema, partes, log);
+    }
+
     if (response.status === 404) {
       throw new Error(
-        `O Gemini nao conhece o modelo "${models.analysis.model}". ` +
-          'Os nomes mudam de tempos em tempos — confira o atual no Google AI Studio e ' +
-          'ajuste em packages/config (analysisProviders.gemini.model).',
+        `O Gemini nao conhece o modelo "${modelo}", nem o substituto que encontrei. ` +
+          'Confira a chave em aistudio.google.com/apikey.',
       );
     }
     if (response.status === 429) {
@@ -98,13 +175,14 @@ async function pedirJson<T>(params: {
   sistema: string;
   partes: Parte[];
   schema: z.ZodType<T>;
+  log?: Logger;
 }): Promise<{ dado: T; entrada: number; saida: number; tentativas: number }> {
   let partes = params.partes;
   let entrada = 0;
   let saida = 0;
 
   for (let tentativa = 1; tentativa <= 2; tentativa++) {
-    const resposta = await chamar(params.sistema, partes);
+    const resposta = await chamar(params.sistema, partes, params.log);
 
     entrada += resposta.usageMetadata?.promptTokenCount ?? 0;
     saida += resposta.usageMetadata?.candidatesTokenCount ?? 0;
@@ -180,7 +258,7 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
 
   return {
     script: dado,
-    modelUsed: models.analysis.model,
+    modelUsed: modeloResolvido ?? models.analysis.model,
     usage: {
       input_tokens: entrada,
       output_tokens: saida,
@@ -200,7 +278,7 @@ export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResu
 
   return {
     synthesis: dado,
-    modelUsed: models.analysis.model,
+    modelUsed: modeloResolvido ?? models.analysis.model,
     usage: { input_tokens: entrada, output_tokens: saida, tentativas },
     costUsd: custoDe(entrada, saida),
   };

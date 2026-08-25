@@ -230,7 +230,7 @@ A transcrição é sempre Groq (Whisper). A **estruturação do roteiro** é tro
 
 | Provedor | Modelo | Por vídeo | Observação |
 |---|---|---|---|
-| `gemini` (ativo) | `gemini-2.5-flash` | **grátis** | Visão nativa, 24 imagens por requisição, saída obrigatoriamente JSON. A cota gratuita vale enquanto o faturamento estiver desligado no projeto do Google. |
+| `gemini` (ativo) | Flash mais recente | **grátis** | Visão nativa, 24 imagens por requisição, saída obrigatoriamente JSON. O nome do modelo na config é só a preferência: se o Google renomeou, o código pergunta à API qual existe e usa o melhor equivalente. A cota gratuita vale enquanto o faturamento estiver desligado no projeto do Google. |
 | `groq` | `llama-4-scout` | **grátis** | Usa a mesma chave da transcrição — nenhuma conta a mais. Só 5 imagens por requisição, então a análise visual é mais rasa. |
 | `deepseek` | `deepseek-v4-flash-vision-exp` | ~US$ 0,012 | Sem `json_schema` — o formato é validado na aplicação. Comprime cada imagem para 384 tokens. |
 | `anthropic` | `claude-sonnet-5` | ~US$ 0,07 | Formato garantido pelo modelo, melhor leitura de texto na tela. |
