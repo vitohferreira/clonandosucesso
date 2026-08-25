@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import { models } from '@molde/config';
 import { profileSynthesisSchema, structuredScriptSchema } from '@molde/shared';
 import { requireEnv } from '../env';
+import { chamarApi } from './http';
 import {
   FORMATO_JSON,
   FORMATO_JSON_PERFIL,
@@ -43,7 +44,7 @@ interface Resposta {
 async function chamar(mensagens: Mensagem[]): Promise<Resposta> {
   const apiKey = requireEnv('GROQ_API_KEY');
 
-  const response = await fetch(ENDPOINT, {
+  const response = await chamarApi(ENDPOINT, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${apiKey}`,
@@ -56,7 +57,7 @@ async function chamar(mensagens: Mensagem[]): Promise<Resposta> {
       response_format: { type: 'json_object' },
       temperature: 0.3,
     }),
-  });
+  }, 'Groq');
 
   if (!response.ok) {
     const detalhe = await response.text().catch(() => '');

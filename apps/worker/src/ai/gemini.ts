@@ -3,6 +3,7 @@ import { models } from '@molde/config';
 import { profileSynthesisSchema, structuredScriptSchema } from '@molde/shared';
 import { requireEnv } from '../env';
 import type { Logger } from '../logger';
+import { chamarApi } from './http';
 import {
   FORMATO_JSON,
   FORMATO_JSON_PERFIL,
@@ -65,7 +66,11 @@ function pontuar(nome: string): number {
 }
 
 async function descobrirModelo(apiKey: string): Promise<string> {
-  const r = await fetch(`${BASE}?key=${encodeURIComponent(apiKey)}&pageSize=200`);
+  const r = await chamarApi(
+    `${BASE}?key=${encodeURIComponent(apiKey)}&pageSize=200`,
+    { method: 'GET' },
+    'Gemini',
+  );
   if (!r.ok) {
     throw new Error(
       `Nao consegui listar os modelos do Gemini (HTTP ${r.status}). Confira a GEMINI_API_KEY.`,
@@ -109,7 +114,7 @@ async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<R
   const modelo = modeloResolvido ?? models.analysis.model;
   const url = `${BASE}/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-  const response = await fetch(url, {
+  const response = await chamarApi(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -122,7 +127,7 @@ async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<R
         responseMimeType: 'application/json',
       },
     }),
-  });
+  }, 'Gemini');
 
   const corpo = (await response.json()) as Resposta;
 

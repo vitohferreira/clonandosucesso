@@ -1,5 +1,6 @@
 import { models } from '@molde/config';
 import { requireEnv } from '../env';
+import { chamarApi } from './http';
 
 /**
  * Transcricao via Groq (Whisper).
@@ -41,11 +42,11 @@ export async function transcribe(audio: Buffer, filename: string): Promise<Trans
   form.append('response_format', 'verbose_json');
   form.append('language', 'pt');
 
-  const response = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
+  const response = await chamarApi(
+    ENDPOINT,
+    { method: 'POST', headers: { authorization: `Bearer ${apiKey}` }, body: form },
+    'Groq',
+  );
 
   if (!response.ok) {
     const detalhe = await response.text().catch(() => '');
