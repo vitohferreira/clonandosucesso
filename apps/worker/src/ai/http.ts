@@ -22,7 +22,7 @@ import { logger } from '../logger';
  * novo so atrasaria a mensagem certa.
  */
 
-const TENTATIVAS = 4;
+const TENTATIVAS_PADRAO = 4;
 const TIMEOUT_MS = 180_000;
 const ESPERA_MAXIMA_MS = 60_000;
 
@@ -125,11 +125,23 @@ function resumir(corpo: string): string {
   return texto.slice(0, 300);
 }
 
+export interface OpcoesChamada {
+  /**
+   * Quantas tentativas neste MESMO endereco. O padrao serve para quem nao tem
+   * plano B; quem sabe trocar de modelo passa um numero baixo, porque para
+   * modelo sobrecarregado mudar de fila resolve muito mais que insistir na
+   * mesma — e insistir custa 15 segundos por modelo.
+   */
+  tentativas?: number;
+}
+
 export async function chamarApi(
   url: string,
   init: RequestInit,
   provedor: string,
+  opcoes: OpcoesChamada = {},
 ): Promise<Response> {
+  const TENTATIVAS = Math.max(1, opcoes.tentativas ?? TENTATIVAS_PADRAO);
   let ultimoErro: unknown;
 
   for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {

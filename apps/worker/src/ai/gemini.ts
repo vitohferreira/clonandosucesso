@@ -43,8 +43,39 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
  * familia 3.x apareceu depois. Um nome chumbado no codigo quebra sozinho a cada
  * poucos meses, entao o nome da config e apenas a PREFERENCIA: se ele nao
  * existir mais, descobrimos o substituto perguntando a propria API.
+ *
+ * O ranking tambem serve para outra coisa, tao comum quanto: sobrecarga. Quando
+ * o Google responde "high demand", o problema e daquele MODELO especifico, nao
+ * da conta — o vizinho na lista costuma atender na hora. Entao insistir tres
+ * vezes no mesmo modelo lotado e desperdicio; o certo e trocar de fila.
  */
-let modeloResolvido: string | null = null;
+let ranking: string[] | null = null;
+let escolhido = 0;
+
+/** Quantas trocas de modelo uma unica chamada pode fazer antes de desistir. */
+const MAX_TROCAS = 3;
+
+function modeloAtual(): string {
+  return ranking?.[escolhido] ?? PERFIL.model;
+}
+
+/**
+ * Avanca para o proximo modelo da lista. Devolve null quando acabaram — ai a
+ * falha e real e precisa subir.
+ */
+async function proximoModelo(apiKey: string): Promise<string | null> {
+  if (!ranking) {
+    // A preferencia da config vem primeiro: ela acabou de falhar, entao o
+    // proximo passo e o indice 1.
+    const encontrados = await listarModelos(apiKey);
+    ranking = [PERFIL.model, ...encontrados.filter((nome) => nome !== PERFIL.model)];
+    escolhido = 0;
+  }
+
+  if (escolhido + 1 >= ranking.length) return null;
+  escolhido += 1;
+  return ranking[escolhido] ?? null;
+}
 
 interface ModeloListado {
   name?: string;
@@ -73,7 +104,8 @@ function pontuar(nome: string): number {
   return pontos;
 }
 
-async function descobrirModelo(apiKey: string): Promise<string> {
+/** Todos os modelos que servem, do melhor para o pior. */
+async function listarModelos(apiKey: string): Promise<string[]> {
   const r = await chamarApi(
     `${BASE}?key=${encodeURIComponent(apiKey)}&pageSize=200`,
     { method: 'GET' },
@@ -95,15 +127,14 @@ async function descobrirModelo(apiKey: string): Promise<string> {
     .filter((c) => c.pontos > 0)
     .sort((a, b) => b.pontos - a.pontos);
 
-  const melhor = candidatos[0]?.nome;
-  if (!melhor) {
+  if (candidatos.length === 0) {
     throw new Error(
       'A sua chave do Gemini nao da acesso a nenhum modelo com generateContent. ' +
         'Gere outra em aistudio.google.com/apikey.',
     );
   }
 
-  return melhor;
+  return candidatos.map((c) => c.nome);
 }
 
 interface Parte {
@@ -117,9 +148,14 @@ interface Resposta {
   error?: { message?: string; status?: string; code?: number };
 }
 
-async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<Resposta> {
+async function chamar(
+  sistema: string,
+  partes: Parte[],
+  log?: Logger,
+  trocas = 0,
+): Promise<Resposta> {
   const apiKey = requireEnv('GEMINI_API_KEY');
-  const modelo = modeloResolvido ?? PERFIL.model;
+  const modelo = modeloAtual();
   const url = `${BASE}/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const response = await chamarApi(url, {
@@ -135,7 +171,7 @@ async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<R
         responseMimeType: 'application/json',
       },
     }),
-  }, 'Gemini');
+  }, 'Gemini', { tentativas: 2 });
 
   // Nao usamos `.json()` direto: quando o Google devolve 5xx, a resposta as
   // vezes vem em HTML de proxy, e ai o `.json()` estoura um SyntaxError cru que
@@ -153,35 +189,49 @@ async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<R
   if (!response.ok || corpo.error) {
     const msg = corpo.error?.message ?? `HTTP ${response.status}`;
 
-    // Modelo renomeado ou aposentado: perguntamos a API qual existe agora e
-    // tentamos de novo, em vez de exigir que alguem edite a config.
-    if (response.status === 404 && !modeloResolvido) {
-      const substituto = await descobrirModelo(apiKey);
-      modeloResolvido = substituto;
-      log?.warn('modelo do Gemini nao existe mais; usando o substituto encontrado', {
-        configurado: PERFIL.model,
-        usando: substituto,
-      });
-      return chamar(sistema, partes, log);
-    }
-
-    if (response.status === 404) {
-      throw new Error(
-        `O Gemini nao conhece o modelo "${modelo}", nem o substituto que encontrei. ` +
-          'Confira a chave em aistudio.google.com/apikey.',
-      );
-    }
-    if (response.status === 429) {
-      throw new Error(
-        'Gemini recusou por limite de uso (HTTP 429). A camada gratuita tem teto diario — ' +
-          'espere e tente de novo, ou troque de provedor em packages/config.',
-      );
-    }
+    // Chave invalida nao se resolve trocando de modelo — sai na frente.
     if (response.status === 400 && /API key/i.test(msg)) {
       throw new Error('Gemini recusou a chave. Confira o secret GEMINI_API_KEY.');
     }
 
-    throw new Error(`Gemini recusou: ${msg}`);
+    // Duas situacoes diferentes, com a MESMA saida: perguntar a API que modelos
+    // existem e passar para o proximo da lista.
+    //   404             -> este nome foi aposentado.
+    //   429/503/lotado  -> este modelo esta sobrecarregado AGORA; o vizinho nao.
+    // O chamarApi ja insistiu no mesmo modelo antes de chegar aqui, entao a esta
+    // altura insistir de novo so gastaria tempo.
+    const sumiu = response.status === 404;
+    const lotado =
+      response.status === 429 ||
+      response.status === 503 ||
+      /high demand|overload|try again later|quota/i.test(msg);
+
+    if ((sumiu || lotado) && trocas < MAX_TROCAS) {
+      const substituto = await proximoModelo(apiKey);
+      if (substituto) {
+        log?.warn(sumiu ? 'modelo do Gemini nao existe mais' : 'modelo do Gemini sobrecarregado', {
+          era: modelo,
+          usando: substituto,
+          motivo: msg.slice(0, 160),
+        });
+        return chamar(sistema, partes, log, trocas + 1);
+      }
+    }
+
+    if (sumiu) {
+      throw new Error(
+        `O Gemini nao conhece o modelo "${modelo}", nem os substitutos que encontrei. ` +
+          'Confira a chave em aistudio.google.com/apikey.',
+      );
+    }
+    if (lotado) {
+      throw new Error(
+        `Gemini sobrecarregado: tentei ${trocas + 1} modelo(s) e todos responderam ` +
+          `"ocupado, tente mais tarde". Ultimo: ${modelo} — ${msg}`,
+      );
+    }
+
+    throw new Error(`Gemini recusou (${modelo}): ${msg}`);
   }
 
   return corpo;
@@ -286,7 +336,7 @@ export async function estruturarRoteiro(
 
   return {
     script: dado,
-    modelUsed: modeloResolvido ?? PERFIL.model,
+    modelUsed: modeloAtual(),
     usage: {
       input_tokens: entrada,
       output_tokens: saida,
@@ -310,7 +360,7 @@ export async function sintetizarPerfil(
 
   return {
     synthesis: dado,
-    modelUsed: modeloResolvido ?? PERFIL.model,
+    modelUsed: modeloAtual(),
     usage: { input_tokens: entrada, output_tokens: saida, tentativas },
     costUsd: custoDe(entrada, saida),
   };
