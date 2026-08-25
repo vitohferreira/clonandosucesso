@@ -197,6 +197,26 @@ export const media = {
  */
 export const analysisProviders = {
   /**
+   * Gemini (Google AI Studio). A melhor opcao GRATUITA para esta tarefa: visao
+   * nativa, sem teto baixo de imagens por requisicao, e saida obrigatoriamente
+   * json. Le texto na tela bem melhor que o modelo gratuito do Groq.
+   *
+   * A cota gratuita vale enquanto o faturamento estiver DESLIGADO no projeto do
+   * Google — ligar cobranca faz a camada gratuita desaparecer.
+   *
+   * Se o nome do modelo der 404, e porque o Google renomeou: confira no AI
+   * Studio e ajuste aqui.
+   */
+  gemini: {
+    provider: 'gemini' as const,
+    model: 'gemini-2.5-flash',
+    maxTokens: 16_000,
+    maxImages: 24,
+    usdPerMillionInput: 0,
+    usdPerMillionOutput: 0,
+  },
+
+  /**
    * Groq com modelo de visao. GRATUITO: usa a MESMA chave que ja transcreve o
    * audio, entao nao exige conta nova nem cartao.
    *
@@ -256,11 +276,12 @@ export const models = {
   /**
    * <<< TROQUE AQUI para mudar de provedor de analise.
    *
-   * Padrao: groq, porque e gratuito e reaproveita a chave da transcricao. Para
-   * melhor leitura de texto na tela, troque para `anthropic` (pago) ou
-   * `deepseek` (barato).
+   * Padrao: gemini, a melhor opcao gratuita. Alternativas: `groq` (tambem
+   * gratuito, reaproveita a chave da transcricao, mas so 5 imagens por
+   * requisicao), `anthropic` (pago, melhor leitura de imagem) ou `deepseek`
+   * (barato).
    */
-  analysis: analysisProviders.groq as AnalysisProvider,
+  analysis: analysisProviders.gemini as AnalysisProvider,
 } as const;
 
 /**

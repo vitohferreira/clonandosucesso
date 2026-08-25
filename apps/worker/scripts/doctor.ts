@@ -76,9 +76,14 @@ checa(
 );
 
 const provedor = models.analysis.provider;
-const chaveDoProvedor =
-  provedor === 'deepseek' ? process.env.DEEPSEEK_API_KEY : process.env.ANTHROPIC_API_KEY;
-const nomeDaChave = provedor === 'deepseek' ? 'DEEPSEEK_API_KEY' : 'ANTHROPIC_API_KEY';
+const CHAVE_DO_PROVEDOR: Record<string, string> = {
+  gemini: 'GEMINI_API_KEY',
+  groq: 'GROQ_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
+};
+const nomeDaChave = CHAVE_DO_PROVEDOR[provedor] ?? 'ANTHROPIC_API_KEY';
+const chaveDoProvedor = process.env[nomeDaChave];
 
 checa(
   !!chaveDoProvedor,

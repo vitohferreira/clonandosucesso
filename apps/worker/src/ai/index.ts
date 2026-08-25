@@ -8,6 +8,10 @@ import {
   sintetizarPerfil as perfilDeepseek,
 } from './deepseek';
 import {
+  estruturarRoteiro as roteiroGemini,
+  sintetizarPerfil as perfilGemini,
+} from './gemini';
+import {
   estruturarRoteiro as roteiroGroq,
   sintetizarPerfil as perfilGroq,
 } from './groq-vision';
@@ -32,6 +36,8 @@ export type {
  */
 export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaResultado> {
   switch (models.analysis.provider) {
+    case 'gemini':
+      return roteiroGemini(ctx);
     case 'groq':
       return roteiroGroq(ctx);
     case 'deepseek':
@@ -50,6 +56,8 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
 /** Sintese do perfil, pelo mesmo provedor ativo. */
 export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResultado> {
   switch (models.analysis.provider) {
+    case 'gemini':
+      return perfilGemini(ctx);
     case 'groq':
       return perfilGroq(ctx);
     case 'deepseek':
