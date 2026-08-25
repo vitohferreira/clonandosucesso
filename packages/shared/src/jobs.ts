@@ -42,6 +42,14 @@ export const videoExtractionPayloadSchema = z.discriminatedUnion('source', [
   z.object({
     source: z.literal('instagram'),
     shortcode: z.string().min(1),
+    /**
+     * De quem e o post. A API oficial busca por PERFIL, nao por post — sem o
+     * handle nao ha como pedir o arquivo do video.
+     */
+    handle: z
+      .string()
+      .transform(normalizeHandle)
+      .refine(isValidHandle, { message: 'Handle invalido' }),
     /** Preenchido quando o job vem de dentro de uma analise de perfil. */
     postId: z.string().uuid().nullable().default(null),
   }),

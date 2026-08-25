@@ -15,9 +15,13 @@ dor da audiência lida nos comentários, e uma síntese do porquê aquele perfil
 funciona.
 
 **Módulo B — Extração de roteiro.** Funciona sozinho, sem depender do Módulo A.
-Você manda um vídeo e recebe o roteiro anotado: fala com timestamp, texto na
-tela, descrição de cena, ritmo de corte e marcação de b-roll. No formato que
-você usaria para briefar um editor.
+Você manda um vídeo — **arquivo do computador ou link de um reel** — e recebe o
+roteiro anotado: fala com timestamp, texto na tela, descrição de cena, ritmo de
+corte e marcação de b-roll. No formato que você usaria para briefar um editor.
+
+> Pelo link, a busca é por **perfil**, não por post: a API oficial não permite
+> pedir uma mídia solta. Quando o link não traz o `@` (formato
+> `instagram.com/reel/CODIGO`), a tela pergunta qual é o perfil.
 
 ## Arquitetura
 

@@ -1,9 +1,9 @@
 -- Molde — schema completo, gerado por `npm run db:bundle`.
 --
 -- Cole ESTE ARQUIVO INTEIRO no SQL Editor do Supabase e clique em Run.
--- Sao 4 migrations na ordem correta. Nao rode em pedacos.
+-- Sao 5 migrations na ordem correta. Nao rode em pedacos.
 --
--- Gerado em 2026-08-25T15:32:30.278Z
+-- Gerado em 2026-08-25T15:53:57.661Z
 
 -- ==========================================================================
 -- 0001_init.sql
@@ -691,3 +691,24 @@ on conflict (id) do update
       allowed_mime_types = excluded.allowed_mime_types;
 
 -- Sem policies de storage: so a service role acessa, igual as tabelas.
+
+
+-- ==========================================================================
+-- 0005_storage_mime.sql
+-- ==========================================================================
+
+-- ============================================================================
+-- Molde — o bucket para de validar MIME.
+--
+-- A lista de tipos permitidos no bucket parecia uma boa ideia e nao era: o
+-- navegador reporta o MIME de forma inconsistente (um .mp4 chega ora como
+-- video/mp4, ora como application/octet-stream, ora vazio), e o upload era
+-- recusado com um 400 seco, sem explicar o motivo.
+--
+-- A validacao continua existindo — mas na API route, onde da para devolver uma
+-- mensagem que diz o que aconteceu. O bucket segue privado e de usuario unico.
+-- ============================================================================
+
+update storage.buckets
+set allowed_mime_types = null
+where id = 'media';

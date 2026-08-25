@@ -1,28 +1,96 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { media } from '@molde/config';
-import { downloadFile, removeFiles } from '@molde/db';
+import { consume, downloadFile, ensureCapacity, removeFiles } from '@molde/db';
 import { videoExtractionPayloadSchema } from '@molde/shared';
+import { coletorAtivo } from '../collector';
 import { analisarVideoLocal, comPastaDeTrabalho } from '../media/pipeline';
 import type { Handler } from './index';
 
 /**
- * Modulo B — de um arquivo enviado a um roteiro anotado.
+ * Modulo B — de um video a um roteiro anotado.
  *
- * A analise em si vive em media/pipeline.ts, compartilhada com o Modulo A: o
- * que muda entre os dois e apenas como o arquivo chegou. Aqui ele vem do
- * Storage, la ele vem do CDN do Instagram.
+ * Duas entradas possiveis:
+ *
+ *   upload     arquivo que voce enviou, que chega pelo Storage.
+ *   instagram  link de um reel, que e buscado pela fonte de coleta ativa.
+ *
+ * A analise em si vive em media/pipeline.ts, compartilhada com o Modulo A: o que
+ * muda entre os caminhos e apenas como o arquivo chegou ate aqui.
  */
 export const videoExtraction: Handler = async ({ job, log, progress, signal }) => {
   const payload = videoExtractionPayloadSchema.parse(job.payload);
 
+  /* ------------------------------------------------------ link de um reel */
   if (payload.source === 'instagram') {
-    throw new Error(
-      'Extracao a partir de um reel avulso ainda nao existe. Por enquanto, ou upload de arquivo, ' +
-        'ou analise do perfil inteiro (que ja processa os videos que explodiram).',
-    );
+    const coletor = coletorAtivo();
+    log.info('buscando o reel', { handle: payload.handle, shortcode: payload.shortcode });
+
+    await progress('procurando o post', { current: 1, total: 6, message: `@${payload.handle}` });
+
+    // A fonte busca por PERFIL: pegamos a listagem e achamos o post nela.
+    const coleta = await coletor.coletar(payload.handle, log, job.id);
+
+    try {
+      const alvo = coleta.midias.find((m) => m.shortcode === payload.shortcode);
+
+      if (!alvo) {
+        throw new Error(
+          `Nao achei o post ${payload.shortcode} entre as ultimas ${coleta.midias.length} publicacoes de @${payload.handle}. ` +
+            'Ou o link e de outro perfil, ou o post e antigo demais para aparecer na listagem.',
+        );
+      }
+
+      if (!alvo.videoUrl) {
+        throw new Error(
+          `O post ${payload.shortcode} nao tem arquivo de video — provavelmente e foto ou carrossel.`,
+        );
+      }
+
+      // Teto de custo: cada video processado gasta API paga.
+      await ensureCapacity('videos_downloaded', 1);
+
+      const saida = await comPastaDeTrabalho(job.id, payload.shortcode, async (pasta) => {
+        await progress('baixando o video', { current: 2, total: 6 });
+        const caminho = join(pasta, 'fonte.mp4');
+        await writeFile(caminho, await coleta.baixarVideo(alvo));
+
+        if (signal.aborted) throw new Error('Worker encerrando antes de processar');
+
+        let etapa = 2;
+        return analisarVideoLocal({
+          videoLocal: caminho,
+          pastaDeTrabalho: pasta,
+          jobId: job.id,
+          postId: payload.postId,
+          source: 'instagram',
+          sourceUrl: alvo.url,
+          log,
+          aoProgredir: async (nome) => {
+            etapa++;
+            await progress(nome, { current: etapa, total: 6 });
+          },
+        });
+      });
+
+      await consume('videos_downloaded', 1);
+
+      return {
+        result: {
+          videoAnalysisId: saida.analise.id,
+          durationSeconds: saida.analise.duration_s,
+          blockCount: saida.blocos,
+          cutCount: saida.cortes,
+          hookText: saida.analise.hook_text,
+        },
+        costUsd: saida.custoUsd,
+      };
+    } finally {
+      await coleta.fechar();
+    }
   }
 
+  /* ------------------------------------------------------ arquivo enviado */
   return comPastaDeTrabalho(job.id, 'upload', async (pasta) => {
     await progress('baixando o video', { current: 1, total: 6 });
 
@@ -65,3 +133,4 @@ export const videoExtraction: Handler = async ({ job, log, progress, signal }) =
     };
   });
 };
+

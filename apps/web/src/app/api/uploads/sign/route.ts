@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
  * O arquivo nao passa por aqui de proposito: o corpo de uma route handler na
  * Vercel morre por volta de 4,5 MB, e um reel de 90s passa disso facil.
  */
-const TIPOS_ACEITOS = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'];
+const EXTENSOES_ACEITAS = ['mp4', 'mov', 'm4v', 'webm', 'mkv'];
 const TAMANHO_MAXIMO = 500 * 1024 * 1024;
 
 export async function POST(request: Request) {
@@ -34,12 +34,18 @@ export async function POST(request: Request) {
       { status: 413 },
     );
   }
-  if (contentType && !TIPOS_ACEITOS.includes(contentType)) {
+  // Validamos pela EXTENSÃO, não pelo MIME: o navegador reporta o tipo de forma
+  // inconsistente, e recusar por isso rejeita arquivo bom.
+  const extensao = filename.split('.').pop()?.toLowerCase() ?? '';
+  if (!EXTENSOES_ACEITAS.includes(extensao)) {
     return NextResponse.json(
-      { error: `Formato ${contentType} não aceito. Use MP4, MOV, WebM ou MKV.` },
+      {
+        error: `Arquivo .${extensao || '?'} não aceito. Use MP4, MOV, M4V, WebM ou MKV.`,
+      },
       { status: 415 },
     );
   }
+  void contentType;
 
   // Nome higienizado: o original vira metadado, nao caminho.
   const seguro = filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);

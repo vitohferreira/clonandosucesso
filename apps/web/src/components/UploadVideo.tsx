@@ -155,6 +155,25 @@ export function UploadVideo() {
 }
 
 /**
+ * O navegador reporta o MIME de forma inconsistente: o mesmo .mp4 pode chegar
+ * como video/mp4, como application/octet-stream, ou vazio. Como o Storage usa
+ * esse cabeçalho, deduzimos pela extensão quando o navegador não ajuda.
+ */
+const MIME_POR_EXTENSAO: Record<string, string> = {
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  m4v: 'video/mp4',
+  webm: 'video/webm',
+  mkv: 'video/x-matroska',
+};
+
+function tipoDoArquivo(file: File): string {
+  if (file.type && file.type.startsWith('video/')) return file.type;
+  const extensao = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return MIME_POR_EXTENSAO[extensao] ?? 'video/mp4';
+}
+
+/**
  * XMLHttpRequest em vez de fetch por um motivo so: fetch nao reporta progresso
  * de upload, e mandar 200 MB sem barra e uma tela travada do ponto de vista de
  * quem espera.
@@ -167,15 +186,34 @@ function enviarComProgresso(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
-    xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
+    xhr.setRequestHeader('content-type', tipoDoArquivo(file));
+    // O cliente oficial do Supabase manda este cabeçalho; sem ele, reenviar o
+    // mesmo caminho falha.
+    xhr.setRequestHeader('x-upsert', 'true');
 
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) aoProgredir(Math.round((e.loaded / e.total) * 100));
     });
 
     xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`o Storage recusou o arquivo (HTTP ${xhr.status})`));
+      if (xhr.status >= 200 && xhr.status < 300) return resolve();
+
+      // Mostrar só o número do status torna a falha impossível de diagnosticar.
+      // O Storage explica o motivo no corpo — é isso que precisa chegar na tela.
+      let detalhe = '';
+      try {
+        const corpo = JSON.parse(xhr.responseText) as { message?: string; error?: string };
+        detalhe = corpo.message ?? corpo.error ?? '';
+      } catch {
+        detalhe = xhr.responseText.slice(0, 200);
+      }
+
+      reject(
+        new Error(
+          `O Storage recusou o arquivo (HTTP ${xhr.status})` +
+            (detalhe ? `: ${detalhe}` : '. Sem detalhe no corpo da resposta.'),
+        ),
+      );
     });
 
     xhr.addEventListener('error', () => reject(new Error('falha de rede durante o envio')));

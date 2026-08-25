@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listJobs, listVideoAnalyses } from '@molde/db';
 import { PageHead, Shell } from '@/components/Shell';
+import { LinkDoReel } from '@/components/LinkDoReel';
 import { UploadVideo } from '@/components/UploadVideo';
 import { relativeTime, usd } from '@/lib/format';
 
@@ -19,7 +20,10 @@ export default async function VideosPage() {
         descricao="Mande um vídeo e receba o roteiro anotado: fala com timestamp, texto na tela, descrição de cena, ritmo de corte e o gancho isolado."
       />
 
-      <UploadVideo />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <UploadVideo />
+        <LinkDoReel />
+      </div>
 
       {emAndamento.length > 0 && (
         <section className="mt-8">
