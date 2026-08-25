@@ -35,7 +35,12 @@ export interface ResultadoDisparo {
   motivo?: string;
 }
 
-export async function ligarWorker(minutos = '10'): Promise<ResultadoDisparo> {
+/**
+ * O tempo aqui e TETO, nao consumo: o worker encerra sozinho assim que a fila
+ * esvazia. Ele so precisa ser grande o bastante para caber o job mais longo —
+ * uma analise de perfil com varios videos passa dos 10 minutos com folga.
+ */
+export async function ligarWorker(minutos = '30'): Promise<ResultadoDisparo> {
   const token = process.env.GITHUB_TOKEN;
   const repo = process.env.GITHUB_REPO;
 
@@ -76,16 +81,18 @@ export async function ligarWorker(minutos = '10'): Promise<ResultadoDisparo> {
 }
 
 /**
- * Se ja existe um worker rodando, nao adianta disparar outro: ele pegaria a fila
- * vazia.
+ * Se ja existe um worker rodando O CODIGO ATUAL, nao adianta disparar outro:
+ * ele pegaria a fila vazia.
  *
- * ATENÇÃO ao efeito colateral: um worker carrega o código UMA vez, ao iniciar.
- * Se ele estiver de pé desde antes de um deploy, vai processar trabalhos novos
- * com o código antigo — por até 10 minutos. Quando você acabou de corrigir algo
- * e quer testar, cancele a execução em andamento antes de reenfileirar.
+ * A parte "o codigo atual" nao e detalhe. Um worker carrega o codigo UMA vez, ao
+ * iniciar. Um worker de pe desde antes do ultimo deploy processa trabalhos novos
+ * com o codigo antigo — entao suprimir o disparo por causa dele faria a correcao
+ * recem-publicada parecer que nao funcionou. Por isso comparamos o commit: se o
+ * que esta rodando e outro, vale a pena subir um worker novo, mesmo custando
+ * alguns minutos de Action.
  *
- * O worker anuncia o commit que carregou na primeira linha do log, justamente
- * para esse descompasso ser visível.
+ * O worker anuncia o commit que carregou na primeira linha do log, para esse
+ * descompasso continuar visivel quando acontecer.
  */
 export async function jaTemWorkerRodando(): Promise<boolean> {
   const token = process.env.GITHUB_TOKEN;
@@ -94,7 +101,7 @@ export async function jaTemWorkerRodando(): Promise<boolean> {
 
   try {
     const r = await fetch(
-      `https://api.github.com/repos/${repo}/actions/workflows/${WORKFLOW}/runs?status=in_progress&per_page=1`,
+      `https://api.github.com/repos/${repo}/actions/workflows/${WORKFLOW}/runs?per_page=20`,
       {
         headers: {
           authorization: `Bearer ${token}`,
@@ -105,8 +112,22 @@ export async function jaTemWorkerRodando(): Promise<boolean> {
     );
 
     if (!r.ok) return false;
-    const dados = (await r.json()) as { total_count?: number };
-    return (dados.total_count ?? 0) > 0;
+
+    const dados = (await r.json()) as {
+      workflow_runs?: Array<{ status?: string; head_sha?: string; run_started_at?: string }>;
+    };
+
+    const emAndamento = (dados.workflow_runs ?? []).filter(
+      (run) => run.status === 'queued' || run.status === 'in_progress' || run.status === 'waiting',
+    );
+
+    if (emAndamento.length === 0) return false;
+
+    // O commit que a Vercel publicou e o que o worker DEVERIA estar rodando.
+    const commitAtual = process.env.VERCEL_GIT_COMMIT_SHA?.trim();
+    if (!commitAtual) return true; // sem como comparar, mantem o cuidado antigo
+
+    return emAndamento.some((run) => run.head_sha === commitAtual);
   } catch {
     return false;
   }

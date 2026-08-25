@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { models } from '@molde/config';
+import { analysisProviders } from '@molde/config';
 import { profileSynthesisSchema, structuredScriptSchema } from '@molde/shared';
 import {
   SISTEMA,
@@ -12,6 +12,14 @@ import {
   type EstruturaResultado,
   type SinteseResultado,
 } from './prompt';
+
+/**
+ * Este arquivo fala SEMPRE pelo seu proprio provedor, nunca por
+ * `models.analysis`. E o que permite o ai/index.ts cair para ca quando o
+ * provedor escolhido esta fora do ar: aqui o modelo e o preco sao os do
+ * Anthropic, aconteca o que acontecer la fora.
+ */
+const PERFIL = analysisProviders.anthropic;
 
 /**
  * Estruturacao do roteiro via Anthropic.
@@ -48,8 +56,8 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
   });
 
   const response = await client().messages.parse({
-    model: models.analysis.model,
-    max_tokens: models.analysis.maxTokens,
+    model: PERFIL.model,
+    max_tokens: PERFIL.maxTokens,
     system: SISTEMA,
     messages: [{ role: 'user', content: conteudo }],
     output_config: { format: zodOutputFormat(structuredScriptSchema) },
@@ -64,12 +72,12 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
   const entrada = response.usage.input_tokens ?? 0;
   const saida = response.usage.output_tokens ?? 0;
   const custo =
-    (entrada / 1_000_000) * models.analysis.usdPerMillionInput +
-    (saida / 1_000_000) * models.analysis.usdPerMillionOutput;
+    (entrada / 1_000_000) * PERFIL.usdPerMillionInput +
+    (saida / 1_000_000) * PERFIL.usdPerMillionOutput;
 
   return {
     script: response.parsed_output,
-    modelUsed: models.analysis.model,
+    modelUsed: PERFIL.model,
     usage: {
       input_tokens: entrada,
       output_tokens: saida,
@@ -86,8 +94,8 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
  */
 export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResultado> {
   const response = await client().messages.parse({
-    model: models.analysis.model,
-    max_tokens: models.analysis.maxTokens,
+    model: PERFIL.model,
+    max_tokens: PERFIL.maxTokens,
     system: SISTEMA_PERFIL,
     messages: [{ role: 'user', content: montarContextoPerfil(ctx) }],
     output_config: { format: zodOutputFormat(profileSynthesisSchema) },
@@ -102,12 +110,12 @@ export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResu
   const entrada = response.usage.input_tokens ?? 0;
   const saida = response.usage.output_tokens ?? 0;
   const custo =
-    (entrada / 1_000_000) * models.analysis.usdPerMillionInput +
-    (saida / 1_000_000) * models.analysis.usdPerMillionOutput;
+    (entrada / 1_000_000) * PERFIL.usdPerMillionInput +
+    (saida / 1_000_000) * PERFIL.usdPerMillionOutput;
 
   return {
     synthesis: response.parsed_output,
-    modelUsed: models.analysis.model,
+    modelUsed: PERFIL.model,
     usage: { input_tokens: entrada, output_tokens: saida },
     costUsd: Number(custo.toFixed(6)),
   };

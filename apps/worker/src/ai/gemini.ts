@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { models } from '@molde/config';
+import { analysisProviders } from '@molde/config';
 import { profileSynthesisSchema, structuredScriptSchema } from '@molde/shared';
 import { requireEnv } from '../env';
 import type { Logger } from '../logger';
@@ -16,6 +16,14 @@ import {
   type EstruturaResultado,
   type SinteseResultado,
 } from './prompt';
+
+/**
+ * Este arquivo fala SEMPRE pelo seu proprio provedor, nunca por
+ * `models.analysis`. E o que permite o ai/index.ts cair para ca quando o
+ * provedor escolhido esta fora do ar: aqui o modelo e o preco sao os do
+ * Gemini, aconteca o que acontecer la fora.
+ */
+const PERFIL = analysisProviders.gemini;
 
 /**
  * Analise pelo Gemini (Google AI Studio).
@@ -111,7 +119,7 @@ interface Resposta {
 
 async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<Resposta> {
   const apiKey = requireEnv('GEMINI_API_KEY');
-  const modelo = modeloResolvido ?? models.analysis.model;
+  const modelo = modeloResolvido ?? PERFIL.model;
   const url = `${BASE}/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const response = await chamarApi(url, {
@@ -121,7 +129,7 @@ async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<R
       systemInstruction: { parts: [{ text: sistema }] },
       contents: [{ role: 'user', parts: partes }],
       generationConfig: {
-        maxOutputTokens: models.analysis.maxTokens,
+        maxOutputTokens: PERFIL.maxTokens,
         temperature: 0.3,
         // Obriga a saida a ser json — sem isto o modelo tende a embrulhar em prosa.
         responseMimeType: 'application/json',
@@ -129,7 +137,18 @@ async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<R
     }),
   }, 'Gemini');
 
-  const corpo = (await response.json()) as Resposta;
+  // Nao usamos `.json()` direto: quando o Google devolve 5xx, a resposta as
+  // vezes vem em HTML de proxy, e ai o `.json()` estoura um SyntaxError cru que
+  // esconde por completo o que aconteceu de verdade.
+  const texto = await response.text().catch(() => '');
+  let corpo: Resposta;
+  try {
+    corpo = JSON.parse(texto) as Resposta;
+  } catch {
+    throw new Error(
+      `Gemini respondeu algo que nao e json (HTTP ${response.status}): ${texto.slice(0, 300) || '<corpo vazio>'}`,
+    );
+  }
 
   if (!response.ok || corpo.error) {
     const msg = corpo.error?.message ?? `HTTP ${response.status}`;
@@ -140,7 +159,7 @@ async function chamar(sistema: string, partes: Parte[], log?: Logger): Promise<R
       const substituto = await descobrirModelo(apiKey);
       modeloResolvido = substituto;
       log?.warn('modelo do Gemini nao existe mais; usando o substituto encontrado', {
-        configurado: models.analysis.model,
+        configurado: PERFIL.model,
         usando: substituto,
       });
       return chamar(sistema, partes, log);
@@ -238,12 +257,15 @@ async function pedirJson<T>(params: {
 
 function custoDe(entrada: number, saida: number): number {
   const total =
-    (entrada / 1_000_000) * models.analysis.usdPerMillionInput +
-    (saida / 1_000_000) * models.analysis.usdPerMillionOutput;
+    (entrada / 1_000_000) * PERFIL.usdPerMillionInput +
+    (saida / 1_000_000) * PERFIL.usdPerMillionOutput;
   return Number(total.toFixed(6));
 }
 
-export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaResultado> {
+export async function estruturarRoteiro(
+  ctx: ContextoVideo,
+  log?: Logger,
+): Promise<EstruturaResultado> {
   const partes: Parte[] = [{ text: montarContexto(ctx) }];
 
   for (const frame of ctx.frames) {
@@ -259,11 +281,12 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
     sistema: SISTEMA,
     partes,
     schema: structuredScriptSchema,
+    log,
   });
 
   return {
     script: dado,
-    modelUsed: modeloResolvido ?? models.analysis.model,
+    modelUsed: modeloResolvido ?? PERFIL.model,
     usage: {
       input_tokens: entrada,
       output_tokens: saida,
@@ -274,16 +297,20 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
   };
 }
 
-export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResultado> {
+export async function sintetizarPerfil(
+  ctx: ContextoPerfil,
+  log?: Logger,
+): Promise<SinteseResultado> {
   const { dado, entrada, saida, tentativas } = await pedirJson({
     sistema: SISTEMA_PERFIL,
     partes: [{ text: `${montarContextoPerfil(ctx)}\n\n${FORMATO_JSON_PERFIL}` }],
     schema: profileSynthesisSchema,
+    log,
   });
 
   return {
     synthesis: dado,
-    modelUsed: modeloResolvido ?? models.analysis.model,
+    modelUsed: modeloResolvido ?? PERFIL.model,
     usage: { input_tokens: entrada, output_tokens: saida, tentativas },
     costUsd: custoDe(entrada, saida),
   };

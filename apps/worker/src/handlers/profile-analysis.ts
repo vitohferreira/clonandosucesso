@@ -297,7 +297,7 @@ export const profileAnalysis: Handler = async ({ job, log, progress, signal }) =
       fracassos,
       destaques: destaques.map((d) => d.title),
       comentarios: comentariosDosOutliers.slice(0, 120),
-    });
+    }, log);
 
     custoTotal += sintese.costUsd;
 

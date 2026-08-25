@@ -83,7 +83,7 @@ export async function analisarVideoLocal(entrada: EntradaPipeline): Promise<Said
     frames,
     sceneTimestamps: cortes,
     avgShotSeconds: mediaPlano,
-  });
+  }, log);
 
   await passo('salvando');
   const pastaMidia = `analises/${jobId}/${entrada.postId ?? 'upload'}`;

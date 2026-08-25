@@ -82,6 +82,14 @@ export const queue = {
   heartbeatMs: 60_000,
   /** Com que frequencia o worker procura jobs orfaos. */
   reaperIntervalMs: 5 * 60_000,
+  /**
+   * Tempo de fila vazia antes de o worker encerrar sozinho.
+   *
+   * Existe por causa de onde ele roda: no GitHub Actions, minuto ligado e minuto
+   * gasto. Sem isto o worker fica de pe ate o fim do orcamento mesmo sem ter o
+   * que fazer. Quando um trabalho novo aparece, o site sobe outro worker.
+   */
+  idleExitMs: 90_000,
 } as const;
 
 /**

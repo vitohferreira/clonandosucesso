@@ -174,6 +174,20 @@ async function reap(): Promise<void> {
   }
 }
 
+/**
+ * Orcamento de tempo desta execucao, em milissegundos.
+ *
+ * Quem define e o workflow (MOLDE_RUN_MINUTES). A diferenca em relacao a matar
+ * o processo por fora e a que importa: aqui o worker para de PEGAR trabalho
+ * novo quando o orcamento acaba, mas termina o que ja estava fazendo. Job
+ * morto no meio ficava `running` orfao e so virava `failed` meia hora depois —
+ * do lado de fora, isso parece o site travado.
+ */
+function orcamentoMs(): number | null {
+  const minutos = Number(process.env.MOLDE_RUN_MINUTES);
+  return Number.isFinite(minutos) && minutos > 0 ? minutos * 60_000 : null;
+}
+
 async function main() {
   requireEnv('SUPABASE_URL');
   if (!supabaseSecretKey()) {
@@ -209,7 +223,18 @@ async function main() {
   await reap();
   let lastReapAt = Date.now();
 
+  const orcamento = orcamentoMs();
+  const prazo = orcamento ? Date.now() + orcamento : null;
+  let ociosoDesde: number | null = null;
+  let processados = 0;
+
   while (!shuttingDown) {
+    // O prazo so e checado ENTRE jobs: o que estiver em andamento termina.
+    if (prazo && Date.now() >= prazo) {
+      logger.info('orcamento desta execucao acabou; encerrando entre jobs', { processados });
+      break;
+    }
+
     if (Date.now() - lastReapAt > queue.reaperIntervalMs) {
       await reap();
       lastReapAt = Date.now();
@@ -226,14 +251,25 @@ async function main() {
     }
 
     if (!job) {
+      ociosoDesde ??= Date.now();
+
+      // Fila vazia por tempo demais: sair e mais barato que ficar de pe. Quando
+      // chegar trabalho novo, o site sobe outro worker.
+      if (Date.now() - ociosoDesde >= queue.idleExitMs) {
+        logger.info('fila vazia; encerrando para nao gastar minuto a toa', { processados });
+        break;
+      }
+
       await sleep(queue.pollIntervalMs, shutdownController.signal);
       continue;
     }
 
+    ociosoDesde = null;
     await runJob(job);
+    processados += 1;
   }
 
-  logger.info('worker encerrado');
+  logger.info('worker encerrado', { processados });
   process.exit(0);
 }
 

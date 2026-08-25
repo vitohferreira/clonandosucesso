@@ -14,16 +14,16 @@ on:
   workflow_dispatch:
     inputs:
       minutos:
-        description: 'Quantos minutos o worker fica ligado processando a fila'
+        description: 'Por quantos minutos o worker aceita pegar trabalho novo'
         required: true
-        default: '10'
+        default: '30'
         type: choice
         options: ['5', '10', '20', '30']
 
 jobs:
   processar:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -61,11 +61,18 @@ jobs:
           # Coleta pela API oficial do Instagram (Business Discovery).
           IG_GRAPH_TOKEN: ${{ secrets.IG_GRAPH_TOKEN }}
           IG_GRAPH_USER_ID: ${{ secrets.IG_GRAPH_USER_ID }}
+          # Quem manda no relogio e o worker: passado este tempo ele para de
+          # PEGAR trabalho novo, mas termina o que ja comecou. Antes o processo
+          # era morto por fora no minuto exato, e um job longo (analise de perfil
+          # com varios videos) morria pela metade e ficava orfao.
+          MOLDE_RUN_MINUTES: ${{ inputs.minutos }}
         run: |
           set +e
-          # O worker e um loop infinito de proposito. O timeout manda SIGTERM,
-          # que ele trata encerrando com calma; -k mata se travar.
-          timeout -k 15s ${{ inputs.minutos }}m npx tsx apps/worker/src/index.ts
+          # Rede de seguranca, nao o relogio principal: o worker sai sozinho ao
+          # fim do orcamento (ou antes, se a fila esvaziar). Esta folga de 25
+          # minutos existe so para o caso de ele travar de vez.
+          limite=$(( ${{ inputs.minutos }} + 25 ))
+          timeout -k 15s "${limite}m" npx tsx apps/worker/src/index.ts
           codigo=$?
           set -e
           # 124 = timeout expirou, 143 = SIGTERM. Os dois sao encerramento normal.

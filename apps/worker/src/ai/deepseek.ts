@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { models } from '@molde/config';
+import { analysisProviders } from '@molde/config';
 import { profileSynthesisSchema, structuredScriptSchema } from '@molde/shared';
 import { requireEnv } from '../env';
 import { chamarApi } from './http';
@@ -15,6 +15,14 @@ import {
   type SinteseResultado,
   montarContextoPerfil,
 } from './prompt';
+
+/**
+ * Este arquivo fala SEMPRE pelo seu proprio provedor, nunca por
+ * `models.analysis`. E o que permite o ai/index.ts cair para ca quando o
+ * provedor escolhido esta fora do ar: aqui o modelo e o preco sao os do
+ * DeepSeek, aconteca o que acontecer la fora.
+ */
+const PERFIL = analysisProviders.deepseek;
 
 /**
  * Estruturacao do roteiro via DeepSeek.
@@ -52,8 +60,8 @@ async function chamar(mensagens: MensagemDeepSeek[]): Promise<RespostaDeepSeek> 
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: models.analysis.model,
-      max_tokens: models.analysis.maxTokens,
+      model: PERFIL.model,
+      max_tokens: PERFIL.maxTokens,
       messages: mensagens,
       response_format: { type: 'json_object' },
       temperature: 0.3,
@@ -173,8 +181,8 @@ async function pedirJson<T>(params: {
 
 function custoDe(entrada: number, saida: number): number {
   const total =
-    (entrada / 1_000_000) * models.analysis.usdPerMillionInput +
-    (saida / 1_000_000) * models.analysis.usdPerMillionOutput;
+    (entrada / 1_000_000) * PERFIL.usdPerMillionInput +
+    (saida / 1_000_000) * PERFIL.usdPerMillionOutput;
   return Number(total.toFixed(6));
 }
 
@@ -204,7 +212,7 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
 
   return {
     script: dado,
-    modelUsed: models.analysis.model,
+    modelUsed: PERFIL.model,
     usage: {
       input_tokens: entrada,
       output_tokens: saida,
@@ -230,7 +238,7 @@ export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResu
 
   return {
     synthesis: dado,
-    modelUsed: models.analysis.model,
+    modelUsed: PERFIL.model,
     usage: { input_tokens: entrada, output_tokens: saida, tentativas },
     costUsd: custoDe(entrada, saida),
   };
