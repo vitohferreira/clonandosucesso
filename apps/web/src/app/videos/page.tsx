@@ -7,6 +7,13 @@ import { relativeTime, usd } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
+/** O que identifica o trabalho na lista, conforme a origem do vídeo. */
+function rotuloDoJob(payload: unknown): string {
+  const p = payload as { source?: string; filename?: string; handle?: string; shortcode?: string };
+  if (p.source === 'instagram') return `@${p.handle ?? '?'} · ${p.shortcode ?? ''}`;
+  return p.filename ?? 'vídeo';
+}
+
 export default async function VideosPage() {
   const [analises, jobs] = await Promise.all([listVideoAnalyses(50), listJobs(30)]);
   const emAndamento = jobs.filter(
@@ -37,9 +44,7 @@ export default async function VideosPage() {
               return (
                 <li key={job.id} className="rounded-xl border border-line bg-surface p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-[13px]">
-                      {String((job.payload as { filename?: string }).filename ?? 'vídeo')}
-                    </span>
+                    <span className="text-[13px]">{rotuloDoJob(job.payload)}</span>
                     <span className="tabular text-[11px] text-ink-faint">
                       {job.status === 'queued' ? 'na fila' : (p?.step ?? 'processando')}
                     </span>
