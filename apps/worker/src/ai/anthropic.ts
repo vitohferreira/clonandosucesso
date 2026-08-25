@@ -1,12 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { models } from '@molde/config';
-import { structuredScriptSchema } from '@molde/shared';
+import { profileSynthesisSchema, structuredScriptSchema } from '@molde/shared';
 import {
   SISTEMA,
+  SISTEMA_PERFIL,
   montarContexto,
+  montarContextoPerfil,
+  type ContextoPerfil,
   type ContextoVideo,
   type EstruturaResultado,
+  type SinteseResultado,
 } from './prompt';
 
 /**
@@ -72,6 +76,39 @@ export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaRe
       cache_read_input_tokens: response.usage.cache_read_input_tokens ?? 0,
       frames_enviados: ctx.frames.length,
     },
+    costUsd: Number(custo.toFixed(6)),
+  };
+}
+
+/**
+ * Sintese do perfil. So texto — os frames ja foram lidos na fase de roteiro, e
+ * o que chega aqui e o resultado daquela leitura.
+ */
+export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResultado> {
+  const response = await client().messages.parse({
+    model: models.analysis.model,
+    max_tokens: models.analysis.maxTokens,
+    system: SISTEMA_PERFIL,
+    messages: [{ role: 'user', content: montarContextoPerfil(ctx) }],
+    output_config: { format: zodOutputFormat(profileSynthesisSchema) },
+  });
+
+  if (!response.parsed_output) {
+    throw new Error(
+      `O modelo nao devolveu a sintese (stop_reason: ${response.stop_reason}).`,
+    );
+  }
+
+  const entrada = response.usage.input_tokens ?? 0;
+  const saida = response.usage.output_tokens ?? 0;
+  const custo =
+    (entrada / 1_000_000) * models.analysis.usdPerMillionInput +
+    (saida / 1_000_000) * models.analysis.usdPerMillionOutput;
+
+  return {
+    synthesis: response.parsed_output,
+    modelUsed: models.analysis.model,
+    usage: { input_tokens: entrada, output_tokens: saida },
     costUsd: Number(custo.toFixed(6)),
   };
 }

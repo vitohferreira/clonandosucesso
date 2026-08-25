@@ -2,6 +2,7 @@ export * from './client';
 export * from './events';
 export * from './jobs';
 export * from './posts';
+export * from './profiles';
 export * from './rate-limit';
 export * from './settings';
 export * from './storage';

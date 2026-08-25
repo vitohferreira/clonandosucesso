@@ -84,3 +84,15 @@ export function coerceNumeric<T>(row: T, fields: readonly string[]): T {
 export function coerceNumericAll<T>(rows: T[], fields: readonly string[]): T[] {
   return rows.map((row) => coerceNumeric(row, fields));
 }
+
+/**
+ * Normaliza relacionamento embutido.
+ *
+ * O PostgREST devolve o embed de um-para-um ora como objeto, ora como array de
+ * um elemento, dependendo da versao. Depender de uma das formas e um bug que so
+ * aparece quando o Supabase atualiza — entao aceitamos as duas.
+ */
+export function umDe<T>(valor: T | T[] | null | undefined): T | null {
+  if (valor == null) return null;
+  return Array.isArray(valor) ? (valor[0] ?? null) : valor;
+}

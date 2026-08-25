@@ -5,9 +5,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Logo } from './Logo';
 
 const NAV = [
-  { href: '/', label: 'Fila' },
+  { href: '/perfis', label: 'Perfis' },
   { href: '/videos', label: 'Vídeos' },
   { href: '/ganchos', label: 'Ganchos' },
+  { href: '/', label: 'Fila' },
 ];
 
 /** Moldura comum das telas: marca, navegação e sair. */

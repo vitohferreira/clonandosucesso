@@ -224,6 +224,21 @@ A transcrição é sempre Groq (Whisper). A **estruturação do roteiro** é tro
 Trocar é uma palavra em `packages/config/src/index.ts`, mais a chave do provedor
 no `.env` (ou nos secrets do GitHub).
 
+## Como a coleta funciona
+
+O scraper prefere **ler o JSON que a própria página já busca** a raspar o DOM
+ofuscado do Instagram. É mais estável (a classe CSS muda toda semana, a chave do
+payload quase nunca) e não gera requisição nova — só escutamos o que ia carregar
+de qualquer jeito. O DOM é o plano B, e os dois formatos que o Instagram serve
+(API v1 e GraphQL) são normalizados para um só.
+
+Tudo que conhece a forma do Instagram vive em `apps/worker/src/scraper/selectors.ts`.
+Quando quebrar, conserta-se ali e em lugar nenhum mais.
+
+A ordem das etapas é economia de teto: primeiro o barato (perfil e grade, que vêm
+do JSON), depois o caro (abrir post, baixar vídeo) e só nos outliers. Se o teto
+estourar no meio, o que ficou salvo já é a parte mais valiosa.
+
 ## Detecção de outlier
 
 A peça central da ferramenta, e o lugar onde é fácil se enganar.
@@ -250,11 +265,9 @@ preços de referência estão em `packages/config`.
 
 - **Fase 0 — Scaffold.** ✅ Monorepo, schema, fila funcionando de ponta a ponta.
 - **Fase 1 — Módulo B.** ✅ Upload de arquivo → roteiro anotado.
-- **Fase 2 — Login e coleta.** Script de login, sessão persistida, scraper de
-  perfil coletando dados básicos e grid. Sem IA ainda: primeiro provar que a
-  coleta é estável e discreta.
-- **Fase 3 — Outliers.** Mediana móvel, detecção, e o pipeline da Fase 1 ligado
-  nos vídeos outliers. Síntese do perfil e biblioteca de ganchos.
+- **Fase 2 — Login e coleta.** ✅ Sessão persistida, coleta de perfil e grid.
+- **Fase 3 — Outliers e dossiê.** ✅ Mediana móvel, detecção, pipeline da Fase 1
+  ligado nos vídeos que explodiram, síntese e biblioteca de ganchos.
 - **Fase 4 — Destaques, comentários e perfis semelhantes.** Aqui entram os
   embeddings, com a escolha do modelo feita na hora, e não meses antes.
 

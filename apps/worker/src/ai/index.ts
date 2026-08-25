@@ -1,9 +1,26 @@
 import { models } from '@molde/config';
-import { estruturarRoteiro as viaAnthropic } from './anthropic';
-import { estruturarRoteiro as viaDeepseek } from './deepseek';
-import type { ContextoVideo, EstruturaResultado } from './prompt';
+import {
+  estruturarRoteiro as roteiroAnthropic,
+  sintetizarPerfil as perfilAnthropic,
+} from './anthropic';
+import {
+  estruturarRoteiro as roteiroDeepseek,
+  sintetizarPerfil as perfilDeepseek,
+} from './deepseek';
+import type {
+  ContextoPerfil,
+  ContextoVideo,
+  EstruturaResultado,
+  SinteseResultado,
+} from './prompt';
 
-export type { ContextoVideo, EstruturaResultado } from './prompt';
+export type {
+  ContextoPerfil,
+  ContextoVideo,
+  EstruturaResultado,
+  PostDestacado,
+  SinteseResultado,
+} from './prompt';
 
 /**
  * Ponto unico de entrada da analise. O handler nao sabe qual provedor esta
@@ -12,14 +29,28 @@ export type { ContextoVideo, EstruturaResultado } from './prompt';
 export async function estruturarRoteiro(ctx: ContextoVideo): Promise<EstruturaResultado> {
   switch (models.analysis.provider) {
     case 'deepseek':
-      return viaDeepseek(ctx);
+      return roteiroDeepseek(ctx);
     case 'anthropic':
-      return viaAnthropic(ctx);
+      return roteiroAnthropic(ctx);
     default: {
       // Se um provedor novo entrar na config sem handler, quebra aqui em vez
       // de silenciosamente usar o errado.
       const inalcancavel: never = models.analysis;
       throw new Error(`Provedor de analise sem implementacao: ${JSON.stringify(inalcancavel)}`);
+    }
+  }
+}
+
+/** Sintese do perfil, pelo mesmo provedor ativo. */
+export async function sintetizarPerfil(ctx: ContextoPerfil): Promise<SinteseResultado> {
+  switch (models.analysis.provider) {
+    case 'deepseek':
+      return perfilDeepseek(ctx);
+    case 'anthropic':
+      return perfilAnthropic(ctx);
+    default: {
+      const inalcancavel: never = models.analysis;
+      throw new Error(`Provedor sem implementacao: ${JSON.stringify(inalcancavel)}`);
     }
   }
 }

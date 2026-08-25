@@ -112,3 +112,133 @@ export interface EstruturaResultado {
   usage: Record<string, unknown>;
   costUsd: number;
 }
+
+
+/* ------------------------------------------------------- sintese do perfil */
+
+export const SISTEMA_PERFIL = `Voce analisa um perfil do Instagram para descobrir a
+estrutura por tras do que funciona nele.
+
+O leitor nao quer conselho generico sobre redes sociais. Ele quer entender o
+mecanismo especifico DESTE perfil, para reproduzir a estrutura com identidade
+propria.
+
+Regras:
+
+- Toda afirmacao precisa estar amarrada ao que foi coletado. Se os dados nao
+  sustentam, nao afirme.
+- O post mediano nao interessa. O que interessa e por que uns poucos explodiram
+  e a maioria nao.
+- "whatFails" e tao valioso quanto o que funciona: aponte o que o perfil tenta
+  repetidamente e nao decola.
+- "audiencePain" sai dos comentarios, nao da sua intuicao. Cite o que foi dito.
+- "hookFormula" precisa ser acionavel: alguem deve conseguir escrever um gancho
+  novo seguindo ela.
+- A sintese em markdown responde diretamente: por que esse perfil funciona.
+
+Responda em portugues do Brasil.`;
+
+export const FORMATO_JSON_PERFIL = `Responda com um unico objeto json, sem texto antes
+ou depois, sem cerca de codigo, exatamente nesta forma:
+
+{
+  "narrativePatterns": [{ "pattern": "o padrao observado", "evidence": "o que sustenta" }],
+  "ctaPatterns": [{ "cta": "o tipo de chamada", "frequency": "com que frequencia aparece" }],
+  "whatFails": [{ "attempt": "o que o perfil tenta", "why": "por que nao funciona" }],
+  "audiencePain": [{ "pain": "a dor identificada", "evidence": "o comentario que mostra isso" }],
+  "hookFormula": "a formula de gancho deste perfil, acionavel",
+  "synthesisMd": "a sintese em markdown, respondendo por que o perfil funciona"
+}`;
+
+export interface PostDestacado {
+  shortcode: string;
+  tipo: string;
+  multiplo: number;
+  tier: number | null;
+  base: string;
+  engajamento: number;
+  publicadoEm: string | null;
+  duracaoSegundos: number | null;
+  legenda: string | null;
+  /** Preenchido quando o video passou pelo pipeline de roteiro. */
+  gancho?: string | null;
+  tipoDeGancho?: string | null;
+  resumoDoRoteiro?: string | null;
+}
+
+export interface ContextoPerfil {
+  handle: string;
+  nome: string | null;
+  bio: string | null;
+  categoria: string | null;
+  seguidores: number | null;
+  totalDePosts: number | null;
+  postsColetados: number;
+  distribuicaoDeFormato: unknown;
+  cadencia: unknown;
+  faixasDeDuracao: unknown;
+  outliers: PostDestacado[];
+  fracassos: PostDestacado[];
+  destaques: string[];
+  comentarios: string[];
+}
+
+export interface SinteseResultado {
+  synthesis: import('@molde/shared').ProfileSynthesis;
+  modelUsed: string;
+  usage: Record<string, unknown>;
+  costUsd: number;
+}
+
+function renderPost(p: PostDestacado): string {
+  const partes = [
+    `- ${p.shortcode} (${p.tipo}) ${p.multiplo.toFixed(2)}x da mediana` +
+      (p.tier ? ` [tier ${p.tier}]` : '') +
+      ` — ${p.engajamento} de engajamento em base "${p.base}"`,
+  ];
+  if (p.publicadoEm) partes.push(`  publicado em ${p.publicadoEm.slice(0, 10)}`);
+  if (p.duracaoSegundos) partes.push(`  duracao ${p.duracaoSegundos.toFixed(0)}s`);
+  if (p.gancho) partes.push(`  GANCHO (${p.tipoDeGancho ?? '?'}): "${p.gancho}"`);
+  if (p.resumoDoRoteiro) partes.push(`  roteiro: ${p.resumoDoRoteiro}`);
+  if (p.legenda) partes.push(`  legenda: ${p.legenda.slice(0, 300).replace(/\n/g, ' ')}`);
+  return partes.join('\n');
+}
+
+export function montarContextoPerfil(ctx: ContextoPerfil): string {
+  const blocos: string[] = [
+    `PERFIL: @${ctx.handle}${ctx.nome ? ` (${ctx.nome})` : ''}`,
+    ctx.categoria ? `Categoria declarada: ${ctx.categoria}` : '',
+    ctx.bio ? `Bio: ${ctx.bio}` : '',
+    `Seguidores: ${ctx.seguidores ?? 'desconhecido'}`,
+    `Publicacoes no total: ${ctx.totalDePosts ?? 'desconhecido'} (coletamos ${ctx.postsColetados})`,
+    '',
+    'DISTRIBUICAO DE FORMATO (contagem, fracao e desempenho mediano por formato):',
+    JSON.stringify(ctx.distribuicaoDeFormato, null, 2),
+    '',
+    'CADENCIA (dias e horarios ja no fuso de Sao Paulo):',
+    JSON.stringify(ctx.cadencia, null, 2),
+    '',
+    'DURACAO CRUZADA COM PERFORMANCE:',
+    JSON.stringify(ctx.faixasDeDuracao, null, 2),
+    '',
+    `OS QUE EXPLODIRAM (${ctx.outliers.length}) — a mediana e movel, dos posts vizinhos no tempo:`,
+    ctx.outliers.map(renderPost).join('\n') || '(nenhum)',
+    '',
+    `OS QUE MORRERAM (${ctx.fracassos.length}):`,
+    ctx.fracassos.map(renderPost).join('\n') || '(nenhum)',
+  ];
+
+  if (ctx.destaques.length > 0) {
+    blocos.push('', `DESTAQUES FIXADOS: ${ctx.destaques.join(', ')}`);
+  }
+
+  if (ctx.comentarios.length > 0) {
+    blocos.push(
+      '',
+      `COMENTARIOS DOS POSTS QUE EXPLODIRAM (${ctx.comentarios.length} amostras, sem identificacao de autor):`,
+      ctx.comentarios.map((c) => `- ${c.slice(0, 200).replace(/\n/g, ' ')}`).join('\n'),
+    );
+  }
+
+  return blocos.filter((b) => b !== '').join('\n');
+}
