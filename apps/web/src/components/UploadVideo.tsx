@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
+import { media } from '@molde/config';
 
 type Etapa = 'parado' | 'assinando' | 'enviando' | 'enfileirando' | 'pronto';
 
@@ -22,9 +23,21 @@ export function UploadVideo() {
 
   const ocupado = etapa !== 'parado' && etapa !== 'pronto';
 
+  const limiteMb = Math.round(media.maxUploadBytes / 1024 / 1024);
+
   async function enviar(file: File) {
     setErro(null);
     setProgresso(0);
+
+    // Conferimos ANTES de começar: deixar o envio rodar até o fim para só então
+    // o Storage recusar é desperdiçar o tempo de quem espera.
+    if (file.size > media.maxUploadBytes) {
+      setErro(
+        `Esse vídeo tem ${(file.size / 1024 / 1024).toFixed(0)} MB, e o limite do plano é ${limiteMb} MB. ` +
+          'Comprima o arquivo, ou use a opção de link ao lado — ela não passa pelo Storage.',
+      );
+      return;
+    }
 
     try {
       setEtapa('assinando');
@@ -119,7 +132,7 @@ export function UploadVideo() {
               Arraste um vídeo aqui, ou clique para escolher
             </p>
             <p className="mt-1.5 text-[12px] text-ink-faint">
-              MP4, MOV, WebM ou MKV — até 500 MB
+              MP4, MOV, WebM ou MKV — até {limiteMb} MB
             </p>
           </>
         )}

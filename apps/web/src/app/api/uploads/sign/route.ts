@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { media } from '@molde/config';
 import { createUploadUrl } from '@molde/db';
 
 export const runtime = 'nodejs';
@@ -11,7 +12,6 @@ export const runtime = 'nodejs';
  * Vercel morre por volta de 4,5 MB, e um reel de 90s passa disso facil.
  */
 const EXTENSOES_ACEITAS = ['mp4', 'mov', 'm4v', 'webm', 'mkv'];
-const TAMANHO_MAXIMO = 500 * 1024 * 1024;
 
 export async function POST(request: Request) {
   let body: { filename?: unknown; sizeBytes?: unknown; contentType?: unknown };
@@ -28,9 +28,14 @@ export async function POST(request: Request) {
   if (!filename || sizeBytes <= 0) {
     return NextResponse.json({ error: 'informe filename e sizeBytes' }, { status: 400 });
   }
-  if (sizeBytes > TAMANHO_MAXIMO) {
+  if (sizeBytes > media.maxUploadBytes) {
+    const mb = (n: number) => (n / 1024 / 1024).toFixed(0);
     return NextResponse.json(
-      { error: `Arquivo de ${(sizeBytes / 1024 / 1024).toFixed(0)} MB. O limite é 500 MB.` },
+      {
+        error:
+          `Arquivo de ${mb(sizeBytes)} MB — o limite do plano é ${mb(media.maxUploadBytes)} MB. ` +
+          'Comprima o vídeo, ou use a opção de link, que não passa por aqui.',
+      },
       { status: 413 },
     );
   }

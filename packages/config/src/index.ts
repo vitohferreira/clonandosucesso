@@ -165,6 +165,19 @@ export const media = {
   hookWindowSeconds: 3,
 
   /**
+   * Teto de tamanho do arquivo enviado pelo navegador.
+   *
+   * NAO e escolha nossa: e o limite do plano do Supabase, e o bucket nao pode
+   * passar dele. No plano gratuito sao 50 MB por arquivo; no Pro, muito mais.
+   * Se voce migrar de plano, aumente aqui E no painel (Storage > Settings >
+   * Global file size limit).
+   *
+   * Video vindo de LINK nao passa por aqui: o worker baixa direto do CDN, entao
+   * esse caminho nao tem esse teto.
+   */
+  maxUploadBytes: 50 * 1024 * 1024,
+
+  /**
    * O mp4 original NAO fica guardado depois do processamento: so audio, frames
    * e a analise. Storage e direitos autorais.
    */
