@@ -9,6 +9,7 @@ import {
   type RateLimitField,
 } from '@molde/shared';
 import { absoluteTime, duration, relativeTime, usd } from '@/lib/format';
+import { BotaoRepetir } from './BotaoRepetir';
 import { PageHead } from './Shell';
 
 export type LimitsSnapshot = Record<RateLimitField, { used: number; limit: number; left: number }>;
@@ -209,6 +210,12 @@ function CardJob({ job }: { job: JobRow }) {
             {job.error}
           </pre>
         </details>
+      )}
+
+      {(job.status === 'failed' || job.status === 'blocked') && (
+        <div className="mt-3">
+          <BotaoRepetir jobId={job.id} />
+        </div>
       )}
 
       {job.result && (
