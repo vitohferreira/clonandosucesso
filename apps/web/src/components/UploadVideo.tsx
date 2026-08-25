@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { media } from '@molde/config';
+import { mensagemDaFila, type RespostaDeJob } from '@/lib/worker-status';
 
 type Etapa = 'parado' | 'assinando' | 'enviando' | 'enfileirando' | 'pronto';
 
@@ -20,6 +21,7 @@ export function UploadVideo() {
   const [progresso, setProgresso] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
+  const [aviso, setAviso] = useState<{ texto: string; bom: boolean } | null>(null);
 
   const ocupado = etapa !== 'parado' && etapa !== 'pronto';
 
@@ -84,9 +86,11 @@ export function UploadVideo() {
         throw new Error(b.error ?? 'não consegui enfileirar o trabalho');
       }
 
+      const corpo = (await job.json().catch(() => ({}))) as RespostaDeJob;
+      setAviso(mensagemDaFila(corpo));
       setEtapa('pronto');
       router.refresh();
-      setTimeout(() => setEtapa('parado'), 2500);
+      setTimeout(() => setEtapa('parado'), 6000);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'falhou');
       setEtapa('parado');
@@ -155,10 +159,8 @@ export function UploadVideo() {
           <p className="text-[13px] text-ink-dim">colocando na fila…</p>
         )}
 
-        {etapa === 'pronto' && (
-          <p className="text-[13px] text-good">
-            Na fila. O worker pega assim que estiver ligado.
-          </p>
+        {etapa === 'pronto' && aviso && (
+          <p className={`text-[13px] ${aviso.bom ? 'text-good' : 'text-signal'}`}>{aviso.texto}</p>
         )}
       </div>
 

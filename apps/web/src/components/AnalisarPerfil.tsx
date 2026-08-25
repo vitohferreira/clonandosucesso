@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { mensagemDaFila, type RespostaDeJob } from '@/lib/worker-status';
 
 /** Dispara a análise de um perfil. O trabalho pesado é do worker. */
 export function AnalisarPerfil() {
@@ -9,13 +10,13 @@ export function AnalisarPerfil() {
   const [handle, setHandle] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [ok, setOk] = useState(false);
+  const [ok, setOk] = useState<{ texto: string; bom: boolean } | null>(null);
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setEnviando(true);
     setErro(null);
-    setOk(false);
+    setOk(null);
 
     const r = await fetch('/api/jobs', {
       method: 'POST',
@@ -34,10 +35,10 @@ export function AnalisarPerfil() {
       return;
     }
 
-    setOk(true);
+    setOk(mensagemDaFila((await r.json().catch(() => ({}))) as RespostaDeJob));
     setHandle('');
     router.refresh();
-    setTimeout(() => setOk(false), 4000);
+    setTimeout(() => setOk(null), 8000);
   }
 
   return (
@@ -70,9 +71,7 @@ export function AnalisarPerfil() {
 
       {erro && <p className="mt-3 text-[13px] text-bad">{erro}</p>}
       {ok && (
-        <p className="mt-3 text-[13px] text-good">
-          Na fila. Ligue o worker para ele começar — pode levar uns 10 minutos.
-        </p>
+        <p className={`mt-3 text-[13px] ${ok.bom ? 'text-good' : 'text-signal'}`}>{ok.texto}</p>
       )}
 
       <p className="mt-3 text-[12px] leading-relaxed text-ink-faint">

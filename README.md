@@ -156,7 +156,15 @@ sessão expirar, o job falha com mensagem clara pedindo para você rodar
 O worker também roda dentro do GitHub Actions, sob demanda — útil quando você não
 quer (ou não pode) manter um terminal aberto.
 
-**Como ligar:** Actions → **Worker** → **Run workflow** → escolha por quantos
+**Ligando sozinho (recomendado).** Configure `GITHUB_TOKEN` e `GITHUB_REPO` nas
+variáveis de ambiente da Vercel e o worker passa a ligar sozinho toda vez que um
+trabalho entra na fila. O token é um *fine-grained token* com permissão
+**Actions: Read and write** no repositório.
+
+Sem isso, todo trabalho fica parado esperando — e a tela avisa quando é o caso,
+em vez de dizer só "na fila".
+
+**Na mão:** Actions → **Worker** → **Run workflow** → escolha por quantos
 minutos. Ele processa o que estiver na fila e encerra sozinho.
 
 **Secrets necessários** (Settings → Secrets and variables → Actions):

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createJob, listJobs, remainingToday } from '@molde/db';
 import { createJobSchema } from '@molde/shared';
+import { jaTemWorkerRodando, ligarWorker } from '@/lib/github';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,15 @@ export async function POST(request: Request) {
 
   try {
     const job = await createJob(parsed.data);
-    return NextResponse.json({ job }, { status: 201 });
+
+    // Liga o worker sozinho. Melhor-esforço: se falhar, o job continua na fila e
+    // o botão manual no GitHub segue funcionando — enfileirar nunca pode falhar
+    // por causa disto.
+    const disparo = (await jaTemWorkerRodando())
+      ? { disparado: true, motivo: 'worker já estava rodando' }
+      : await ligarWorker();
+
+    return NextResponse.json({ job, worker: disparo }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'erro ao criar job' },
