@@ -51,17 +51,28 @@ export type ResultadoYtdlp =
  * link estar errado, ou o yt-dlp nem estar instalado.
  */
 export type MotivoDeFalha =
+  /** O Instagram exigiu sessao. E o muro de verdade. */
   | 'exige_login'
   | 'privado'
   | 'nao_existe'
   | 'sem_video'
+  /**
+   * O yt-dlp recebeu a pagina e nao achou o que esperava. NAO e bloqueio: e o
+   * extrator dele desatualizado em relacao ao HTML de hoje. A diferenca importa
+   * muito — bloqueio nao tem solucao sem login, extrator quebrado se resolve
+   * atualizando o yt-dlp ou usando outro caminho.
+   */
+  | 'extrator_quebrado'
   | 'ytdlp_ausente'
   | 'tempo_esgotado'
   | 'outro';
 
+// A ordem importa: o primeiro que casar vence, entao os sinais mais especificos
+// vem antes dos genericos.
 const PADROES: Array<[RegExp, MotivoDeFalha]> = [
-  [/login required|requested content is not available|rate.?limit|429|checkpoint|please wait a few minutes/i, 'exige_login'],
+  [/login required|requires login|requested content is not available|rate.?limit|429|checkpoint|please wait a few minutes/i, 'exige_login'],
   [/private|this account is private/i, 'privado'],
+  [/unable to extract|no suitable extractor|failed to parse|unsupported url/i, 'extrator_quebrado'],
   [/not found|does not exist|unavailable|removed|410|404/i, 'nao_existe'],
   [/no video|there.s no video/i, 'sem_video'],
 ];

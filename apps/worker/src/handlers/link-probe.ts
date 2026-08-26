@@ -2,7 +2,8 @@ import { ingest } from '@molde/config';
 import { logScrapeEvent } from '@molde/db';
 import { consultarEmbed, embedLigado } from '../ingest/embed';
 import { lerLink } from '../ingest/link';
-import { OrcamentoDeRequisicoes, esperarUmPouco } from '../ingest/seguranca';
+import { sondarPerfilPublico } from '../ingest/perfil-publico';
+import { OrcamentoDeRequisicoes } from '../ingest/seguranca';
 import { consultar } from '../ingest/ytdlp';
 import type { HandlerContext, HandlerResult } from './index';
 
@@ -71,22 +72,38 @@ export async function sondarLink(
   /* --------------------------------------------------- camada 2: embed */
   // A camada 2 roda SEMPRE na sondagem, mesmo se a 1 deu certo: o objetivo aqui
   // e medir as duas, nao entregar o resultado mais rapido.
-  let camada2: Awaited<ReturnType<typeof consultarEmbed>> | { pulada: true } = { pulada: true };
+  // Para POST, a camada 2 e a pagina de embed. Para PERFIL, e a propria pagina
+  // publica do perfil — e ali que se descobre, campo por campo, o que da para
+  // coletar sem sessao. Sem isso, uma sondagem de perfil que falha na camada 1
+  // nao ensina nada.
+  type Camada2 =
+    | Awaited<ReturnType<typeof consultarEmbed>>
+    | Awaited<ReturnType<typeof sondarPerfilPublico>>
+    | { pulada: true; porque: string };
 
-  if (alvo.tipo === 'post' && embedLigado()) {
-    await progress('camada 2: pagina publica de embed', { current: 3, total: 4 });
-    await esperarUmPouco();
+  let camada2: Camada2 = { pulada: true, porque: 'desligada na config' };
+
+  if (embedLigado()) {
+    await progress(
+      alvo.tipo === 'post' ? 'camada 2: embed publico' : 'camada 2: pagina publica do perfil',
+      { current: 3, total: 4 },
+    );
     orcamento.gastar();
 
-    camada2 = await consultarEmbed(alvo.chave, log);
+    camada2 =
+      alvo.tipo === 'post'
+        ? await consultarEmbed(alvo.chave, log)
+        : await sondarPerfilPublico(alvo.chave, log);
 
     await logScrapeEvent({
       jobId: job.id,
       kind: 'probe',
       target: 'camada2',
       detail: camada2.ok
-        ? { ok: true, chave: alvo.chave, campos: camada2.dados, segundos: camada2.segundos }
-        : { ok: false, chave: alvo.chave, motivo: camada2.motivo, mensagem: camada2.mensagem, segundos: camada2.segundos },
+        ? { ok: true, chave: alvo.chave, segundos: camada2.segundos,
+            campos: 'dados' in camada2 ? camada2.dados : camada2.campos }
+        : { ok: false, chave: alvo.chave, motivo: camada2.motivo, mensagem: camada2.mensagem,
+            segundos: camada2.segundos },
     });
   }
 
@@ -152,10 +169,21 @@ export async function sondarLink(
         : { ok: false, motivo: camada1.motivo, mensagem: camada1.mensagem, segundos: camada1.segundos },
       camada2:
         'pulada' in camada2
-          ? { pulada: true, porque: alvo.tipo === 'perfil' ? 'embed so existe para post' : 'desligada na config' }
+          ? camada2
           : camada2.ok
-            ? { ok: true, campos: camada2.dados, segundos: camada2.segundos }
-            : { ok: false, motivo: camada2.motivo, mensagem: camada2.mensagem, segundos: camada2.segundos },
+            ? {
+                ok: true,
+                segundos: camada2.segundos,
+                campos: 'dados' in camada2 ? camada2.dados : camada2.campos,
+                ...('bytes' in camada2 ? { bytesDaPagina: camada2.bytes } : {}),
+              }
+            : {
+                ok: false,
+                motivo: camada2.motivo,
+                mensagem: camada2.mensagem,
+                segundos: camada2.segundos,
+                ...('bytes' in camada2 ? { bytesDaPagina: camada2.bytes } : {}),
+              },
     },
     costUsd: 0,
   };
