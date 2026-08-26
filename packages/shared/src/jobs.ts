@@ -7,7 +7,7 @@ import { isValidHandle, normalizeHandle } from './handle';
  * tres semanas depois.
  */
 
-export const JOB_TYPES = ['ping', 'profile_analysis', 'video_extraction', 'link_probe'] as const;
+export const JOB_TYPES = ['ping', 'profile_analysis', 'video_extraction'] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
 export const JOB_STATUSES = ['queued', 'running', 'done', 'failed', 'blocked'] as const;
@@ -31,17 +31,6 @@ export const profileAnalysisPayloadSchema = z.object({
   forceRefetch: z.boolean().default(false),
 });
 
-/**
- * Sondagem de link. Nao produz roteiro: descobre, no runner de verdade, o que
- * o Instagram entrega para quem chega DESLOGADO — e registra qual camada
- * resolveu. E o unico jeito honesto de saber a taxa de sucesso antes de
- * construir em cima de uma suposicao.
- */
-export const linkProbePayloadSchema = z.object({
-  /** O link cru, como voce colou. Quem interpreta e o worker. */
-  url: z.string().min(1).max(500),
-});
-
 export const videoExtractionPayloadSchema = z.discriminatedUnion('source', [
   z.object({
     source: z.literal('upload'),
@@ -49,6 +38,19 @@ export const videoExtractionPayloadSchema = z.discriminatedUnion('source', [
     storagePath: z.string().min(1),
     filename: z.string().min(1),
     sizeBytes: z.number().int().positive(),
+  }),
+  /**
+   * Sondagem: descobre, no runner de verdade, o que o Instagram entrega para
+   * quem chega DESLOGADO, e registra qual camada resolveu. Nao produz roteiro.
+   *
+   * E uma VARIANTE de payload, e nao um tipo de job novo, de proposito: tipo de
+   * job e um enum no Postgres, e mudar enum exige migration na mao. Payload e
+   * jsonb — cabe qualquer forma nova sem ninguem precisar abrir o Supabase.
+   */
+  z.object({
+    source: z.literal('sondagem'),
+    /** O link cru, como voce colou. Quem interpreta e o worker. */
+    url: z.string().min(1).max(500),
   }),
   z.object({
     source: z.literal('instagram'),
@@ -70,7 +72,6 @@ export const jobPayloadSchemas = {
   ping: pingPayloadSchema,
   profile_analysis: profileAnalysisPayloadSchema,
   video_extraction: videoExtractionPayloadSchema,
-  link_probe: linkProbePayloadSchema,
 } satisfies Record<JobType, z.ZodType>;
 
 /** O que a API aceita para criar um job. */
@@ -78,7 +79,6 @@ export const createJobSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ping'), payload: pingPayloadSchema }),
   z.object({ type: z.literal('profile_analysis'), payload: profileAnalysisPayloadSchema }),
   z.object({ type: z.literal('video_extraction'), payload: videoExtractionPayloadSchema }),
-  z.object({ type: z.literal('link_probe'), payload: linkProbePayloadSchema }),
 ]);
 
 export type CreateJobInput = z.input<typeof createJobSchema>;
@@ -153,8 +153,22 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   ping: 'Teste de fila',
   profile_analysis: 'Analise de perfil',
   video_extraction: 'Extracao de roteiro',
-  link_probe: 'Sondagem de link',
 };
+
+/**
+ * Nome do job para a tela. Le o payload porque um `video_extraction` pode ser
+ * tres coisas bem diferentes, e "Extracao de roteiro" numa sondagem seria
+ * mentira.
+ */
+export function rotuloDoJob(type: JobType, payload: unknown): string {
+  if (type === 'video_extraction' && payload && typeof payload === 'object') {
+    const fonte = (payload as { source?: unknown }).source;
+    if (fonte === 'sondagem') return 'Sondagem de link';
+    if (fonte === 'upload') return 'Roteiro (arquivo enviado)';
+    if (fonte === 'instagram') return 'Roteiro (link)';
+  }
+  return JOB_TYPE_LABELS[type];
+}
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   queued: 'Na fila',

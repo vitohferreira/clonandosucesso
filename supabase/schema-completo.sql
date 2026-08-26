@@ -1,9 +1,9 @@
 -- Molde — schema completo, gerado por `npm run db:bundle`.
 --
 -- Cole ESTE ARQUIVO INTEIRO no SQL Editor do Supabase e clique em Run.
--- Sao 7 migrations na ordem correta. Nao rode em pedacos.
+-- Sao 6 migrations na ordem correta. Nao rode em pedacos.
 --
--- Gerado em 2026-08-25T22:04:54.637Z
+-- Gerado em 2026-08-26T00:16:28.483Z
 
 -- ==========================================================================
 -- 0001_init.sql
@@ -733,17 +733,3 @@ where id = 'media';
 update storage.buckets
 set file_size_limit = 52428800  -- 50 MB, o teto do plano gratuito
 where id = 'media';
-
-
--- ==========================================================================
--- 0007_sondagem.sql
--- ==========================================================================
-
--- Sondagem de link: descobrir, no runner de verdade, o que o Instagram entrega
--- para quem chega DESLOGADO.
---
--- Nao cria tabela nenhuma. O relatorio da sondagem cabe em `jobs.result`, e o
--- rastro por camada cabe em `scrape_events`, que ja existe e cujo `kind` e
--- texto livre. Menos schema para manter.
-
-alter type job_type add value if not exists 'link_probe';

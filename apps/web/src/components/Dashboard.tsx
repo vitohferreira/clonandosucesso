@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   JOB_STATUS_LABELS,
-  JOB_TYPE_LABELS,
+  rotuloDoJob,
   type JobRow,
   type JobStatus,
   type RateLimitField,
@@ -155,7 +155,7 @@ function CardJob({ job }: { job: JobRow }) {
           >
             {JOB_STATUS_LABELS[job.status]}
           </span>
-          <span className="text-[13px]">{JOB_TYPE_LABELS[job.type]}</span>
+          <span className="text-[13px]">{rotuloDoJob(job.type, job.payload)}</span>
           <span className="tabular text-[11px] text-ink-faint">{job.id.slice(0, 8)}</span>
         </div>
 

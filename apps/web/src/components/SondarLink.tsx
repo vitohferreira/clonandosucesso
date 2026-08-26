@@ -29,7 +29,10 @@ export function SondarLink() {
       const r = await fetch('/api/jobs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ type: 'link_probe', payload: { url } }),
+        body: JSON.stringify({
+          type: 'video_extraction',
+          payload: { source: 'sondagem', url },
+        }),
       });
 
       const dados = (await r.json()) as { error?: string };

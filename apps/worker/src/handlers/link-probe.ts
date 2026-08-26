@@ -1,14 +1,18 @@
 import { ingest } from '@molde/config';
 import { logScrapeEvent } from '@molde/db';
-import { linkProbePayloadSchema } from '@molde/shared';
 import { consultarEmbed, embedLigado } from '../ingest/embed';
 import { lerLink } from '../ingest/link';
 import { OrcamentoDeRequisicoes, esperarUmPouco } from '../ingest/seguranca';
 import { consultar } from '../ingest/ytdlp';
-import type { Handler } from './index';
+import type { HandlerContext, HandlerResult } from './index';
 
 /**
  * Sondagem de link — medir antes de construir.
+ *
+ * Roda como uma VARIANTE do job de extracao (`source: 'sondagem'`), e nao como
+ * um tipo de job proprio. O motivo e pratico: tipo de job e um enum no
+ * Postgres, e criar valor novo num enum exige rodar SQL na mao no painel do
+ * Supabase. Payload e jsonb — aceita forma nova sem ninguem abrir nada.
  *
  * Este job nao entrega roteiro nenhum. Ele responde uma pergunta que eu nao
  * tenho como responder do meu lado: **o que o Instagram entrega para quem chega
@@ -23,8 +27,10 @@ import type { Handler } from './index';
  * pode acontecer e o IP do runner do GitHub levar um limite temporario: nao e
  * seu, nao esta ligado a voce, e nao ha conta nenhuma para ser punida.
  */
-export const linkProbe: Handler = async ({ job, log, progress }) => {
-  const { url } = linkProbePayloadSchema.parse(job.payload);
+export async function sondarLink(
+  { job, log, progress }: HandlerContext,
+  url: string,
+): Promise<HandlerResult> {
   const orcamento = new OrcamentoDeRequisicoes();
 
   await progress('lendo o link', { current: 1, total: 4 });
@@ -153,4 +159,4 @@ export const linkProbe: Handler = async ({ job, log, progress }) => {
     },
     costUsd: 0,
   };
-};
+}

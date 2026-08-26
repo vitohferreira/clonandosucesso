@@ -4,6 +4,7 @@ import { media } from '@molde/config';
 import { consume, downloadFile, ensureCapacity, removeFiles } from '@molde/db';
 import { videoExtractionPayloadSchema } from '@molde/shared';
 import { coletorAtivo } from '../collector';
+import { sondarLink } from './link-probe';
 import { analisarVideoLocal, comPastaDeTrabalho } from '../media/pipeline';
 import type { Handler } from './index';
 
@@ -18,8 +19,17 @@ import type { Handler } from './index';
  * A analise em si vive em media/pipeline.ts, compartilhada com o Modulo A: o que
  * muda entre os caminhos e apenas como o arquivo chegou ate aqui.
  */
-export const videoExtraction: Handler = async ({ job, log, progress, signal }) => {
+export const videoExtraction: Handler = async (ctx) => {
+  const { job, log, progress, signal } = ctx;
   const payload = videoExtractionPayloadSchema.parse(job.payload);
+
+  /* -------------------------------------------------------- sondagem */
+  // Nao produz roteiro: mede o que o Instagram entrega para quem chega
+  // deslogado. Sai antes de tudo porque nao compartilha nada com os outros
+  // dois caminhos.
+  if (payload.source === 'sondagem') {
+    return sondarLink(ctx, payload.url);
+  }
 
   /* ------------------------------------------------------ link de um reel */
   if (payload.source === 'instagram') {
