@@ -1,13 +1,20 @@
 {
+  "enabledPlugins": {
+    "edit-labs-ai@edit-labs-ai": true,
+    "hyperframes@hyperframes": true
+  },
   "extraKnownMarketplaces": {
     "edit-labs-ai": {
       "source": {
         "source": "github",
         "repo": "paullabs/edit-labs-ai"
       }
+    },
+    "hyperframes": {
+      "source": {
+        "source": "github",
+        "repo": "heygen-com/hyperframes"
+      }
     }
-  },
-  "enabledPlugins": {
-    "edit-labs-ai@edit-labs-ai": true
   }
 }
