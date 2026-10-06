@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "edit-labs-ai": {
+      "source": {
+        "source": "github",
+        "repo": "paullabs/edit-labs-ai"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "edit-labs-ai@edit-labs-ai": true
+  }
+}
